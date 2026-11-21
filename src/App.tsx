@@ -8,7 +8,9 @@ export default function App() {
     const [screen, setScreen] = useState<Screen>("splash")
     const [signedInUser, setSignedInUser] = useState<string | null>(null)
 
-    const logoUrl = ""
+    const logoUrl = encodeURI(
+        `${import.meta.env.BASE_URL}Rising Talent Academy Logo .jpg-Photoroom.png`
+    )
 
     if (screen === "splash") {
         return (
