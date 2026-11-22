@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { TeamDirectoryView } from "./TeamDirectoryView"
+import { ArticlesView } from "./ArticlesView"
 
 export type PermissionGroup =
     | "journalist"
@@ -275,7 +276,9 @@ export function DashboardScreen({
     blackColor = "#000201",
     onSignOut,
 }: DashboardScreenProps) {
-    const [showDirectory, setShowDirectory] = useState(false)
+    const [activeView, setActiveView] = useState<
+        "directory" | "queue" | "submit" | "approvals" | null
+    >(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
     )
@@ -309,7 +312,7 @@ export function DashboardScreen({
         }
     }, [])
 
-    if (showDirectory) {
+    if (activeView === "directory") {
         return (
             <div
                 style={{
@@ -323,7 +326,36 @@ export function DashboardScreen({
             >
                 <TeamDirectoryView
                     user={user}
-                    onBack={() => setShowDirectory(false)}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
+    if (
+        activeView === "queue" ||
+        activeView === "submit" ||
+        activeView === "approvals"
+    ) {
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <ArticlesView
+                    user={user}
+                    initialMode={activeView}
+                    onBack={() => setActiveView(null)}
                     redColor={redColor}
                     blueColor={blueColor}
                     greyColor={greyColor}
@@ -973,8 +1005,29 @@ export function DashboardScreen({
                                                                     action.id ===
                                                                     "directory"
                                                                 ) {
-                                                                    setShowDirectory(
-                                                                        true
+                                                                    setActiveView(
+                                                                        "directory"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "pitch-queue"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "queue"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "submit-copy"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "submit"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "approvals"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "approvals"
                                                                     )
                                                                 } else {
                                                                     setSelectedAction(
