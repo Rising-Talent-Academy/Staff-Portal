@@ -16,7 +16,6 @@ export function LoginScreen({
     blueColor = "#034eaf",
     greyColor = "#696969",
     blackColor = "#000201",
-    onBackToSplash,
     onSignedIn,
 }: LoginScreenProps) {
     const [rtaId, setRtaId] = useState("")
@@ -96,7 +95,7 @@ export function LoginScreen({
                     />
                     <h1
                         style={{
-                            margin: "0 0 6px",
+                            margin: 0,
                             fontSize: "24px",
                             fontWeight: 700,
                             letterSpacing: "-0.02em",
@@ -105,15 +104,6 @@ export function LoginScreen({
                     >
                         Staff Portal Sign In
                     </h1>
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: "14px",
-                            color: greyColor,
-                        }}
-                    >
-                        Rising Talent Academy team & volunteer access
-                    </p>
                 </div>
 
                 <form
@@ -251,7 +241,7 @@ export function LoginScreen({
                     <div
                         style={{
                             display: "flex",
-                            justifyContent: "space-between",
+                            justifyContent: "flex-start",
                             alignItems: "center",
                             marginTop: "2px",
                         }}
@@ -275,24 +265,6 @@ export function LoginScreen({
                         >
                             Forgot RTA ID or password?
                         </button>
-
-                        {onBackToSplash && (
-                            <button
-                                type="button"
-                                onClick={onBackToSplash}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    padding: 0,
-                                    fontSize: "13px",
-                                    fontWeight: 500,
-                                    color: blueColor,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Replay Splash
-                            </button>
-                        )}
                     </div>
                 </form>
             </div>
