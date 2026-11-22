@@ -52,23 +52,23 @@ export function LoginScreen({
     const [recoverySent, setRecoverySent] = useState(false)
 
     const resolveEmail = async (rawInput: string): Promise<string> => {
-        const trimmed = rawInput.trim()
-        if (trimmed.includes("@")) {
-            return trimmed.toLowerCase()
-        }
-
-        const { data, error: lookupError } = await supabase
-            .from("profiles")
-            .select("email")
-            .ilike("rta_id", trimmed)
-            .maybeSingle()
-
-        if (lookupError || !data?.email) {
-            throw new Error("Invalid RTA ID or password.")
-        }
-
-        return data.email.trim().toLowerCase()
+    const trimmed = rawInput.trim()
+    if (trimmed.includes("@")) {
+        return trimmed.toLowerCase()
     }
+
+    const { data, error: lookupError } = await supabase.rpc(
+        "get_email_for_rta_id",
+        { lookup_rta_id: trimmed }
+    )
+
+    if (lookupError || typeof data !== "string" || !data.trim()) {
+        throw new Error("Invalid RTA ID or password.")
+    }
+
+    return data.trim().toLowerCase()
+}
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
