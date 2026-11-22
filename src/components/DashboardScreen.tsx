@@ -25,6 +25,12 @@ interface ActionItem {
     details: string
 }
 
+interface ActionSection {
+    category: ActionCategory
+    label: string
+    items: ActionItem[]
+}
+
 interface DashboardScreenProps {
     logoUrl?: string
     user: StaffProfile
@@ -36,6 +42,7 @@ interface DashboardScreenProps {
 }
 
 const ALL_ACTIONS: ActionItem[] = [
+    // General (Visible to Everyone)
     {
         id: "briefings",
         title: "Team Briefings",
@@ -76,6 +83,8 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Review your assigned RTA ID details, signed volunteer agreements, and core compliance policies.",
     },
+
+    // Journalism
     {
         id: "pitch-queue",
         title: "Pitch & Article Queue",
@@ -106,6 +115,8 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Access verified driver profiles, championship standings, and official press reference notes.",
     },
+
+    // Content Creation
     {
         id: "content-calendar",
         title: "Content Calendar",
@@ -136,6 +147,8 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
     },
+
+    // Leadership & Admin
     {
         id: "approvals",
         title: "Editorial & Content Approvals",
@@ -185,18 +198,35 @@ const GROUP_LABELS: Record<PermissionGroup, string> = {
     leadership: "Leadership & Admin Access",
 }
 
-function getVisibleActions(group: PermissionGroup): ActionItem[] {
-    return ALL_ACTIONS.filter((action) => {
-        if (action.category === "core") return true
-        if (group === "leadership") return true
-        if (group === "both") {
-            return (
-                action.category === "journalist" ||
-                action.category === "creator"
-            )
-        }
-        return action.category === group
-    })
+const SECTION_CONFIG: { category: ActionCategory; label: string }[] = [
+    { category: "core", label: "General" },
+    { category: "journalist", label: "Journalism" },
+    { category: "creator", label: "Content Creation" },
+    { category: "leadership", label: "Leadership & Admin" },
+]
+
+function isCategoryAllowed(
+    category: ActionCategory,
+    group: PermissionGroup
+): boolean {
+    if (category === "core") return true
+    if (group === "leadership") return true
+    if (group === "both") {
+        return category === "journalist" || category === "creator"
+    }
+    return category === group
+}
+
+function getGroupedSections(group: PermissionGroup): ActionSection[] {
+    return SECTION_CONFIG.filter((section) =>
+        isCategoryAllowed(section.category, group)
+    ).map((section) => ({
+        category: section.category,
+        label: section.label,
+        items: ALL_ACTIONS.filter(
+            (action) => action.category === section.category
+        ),
+    }))
 }
 
 export function DashboardScreen({
@@ -212,7 +242,7 @@ export function DashboardScreen({
         null
     )
 
-    const visibleActions = getVisibleActions(user.permissionGroup)
+    const sections = getGroupedSections(user.permissionGroup)
 
     const getAccentColor = (accent: ActionItem["accent"]) => {
         if (accent === "red") return redColor
@@ -242,6 +272,7 @@ export function DashboardScreen({
                     margin: "0 auto",
                 }}
             >
+                {/* Header */}
                 <header
                     style={{
                         display: "flex",
@@ -301,6 +332,7 @@ export function DashboardScreen({
                     </button>
                 </header>
 
+                {/* Accent Line */}
                 <div
                     style={{
                         width: "100%",
@@ -311,13 +343,14 @@ export function DashboardScreen({
                     }}
                 />
 
+                {/* Name | Role & RTA ID Card */}
                 <section
                     style={{
                         padding: "16px 18px",
                         borderRadius: "14px",
                         border: "1px solid rgba(0, 2, 1, 0.12)",
                         backgroundColor: "rgba(0, 2, 1, 0.02)",
-                        marginBottom: "20px",
+                        marginBottom: "22px",
                     }}
                 >
                     <div
@@ -406,99 +439,161 @@ export function DashboardScreen({
                     </div>
                 </section>
 
-                <section
+                {/* Grouped Sections */}
+                <div
                     style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "22px",
                     }}
                 >
-                    {visibleActions.map((action) => {
-                        const barColor = getAccentColor(action.accent)
-                        const isLeadershipAction =
-                            action.category === "leadership"
+                    {sections.map((section) => {
+                        const isLeadershipSection =
+                            section.category === "leadership"
                         return (
-                            <button
-                                key={action.id}
-                                type="button"
-                                onClick={() => setSelectedAction(action)}
-                                style={{
-                                    textAlign: "left",
-                                    padding: "16px 14px",
-                                    borderRadius: "14px",
-                                    border: isLeadershipAction
-                                        ? "1px solid rgba(250, 52, 37, 0.28)"
-                                        : "1px solid rgba(0, 2, 1, 0.12)",
-                                    backgroundColor: isLeadershipAction
-                                        ? "rgba(250, 52, 37, 0.02)"
-                                        : "#FFFFFF",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    justifyContent: "space-between",
-                                    minHeight: "110px",
-                                    boxSizing: "border-box",
-                                }}
-                            >
+                            <section key={section.category}>
                                 <div
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
-                                        marginBottom: "12px",
+                                        marginBottom: "10px",
                                     }}
                                 >
-                                    <div
+                                    <h2
                                         style={{
-                                            width: "28px",
-                                            height: "3px",
-                                            borderRadius: "999px",
-                                            backgroundColor: barColor,
+                                            margin: 0,
+                                            fontSize: "12px",
+                                            fontWeight: 700,
+                                            letterSpacing: "0.1em",
+                                            textTransform: "uppercase",
+                                            color: isLeadershipSection
+                                                ? redColor
+                                                : greyColor,
                                         }}
-                                    />
-                                    {isLeadershipAction && (
-                                        <span
-                                            style={{
-                                                fontSize: "10px",
-                                                fontWeight: 700,
-                                                letterSpacing: "0.06em",
-                                                textTransform: "uppercase",
-                                                color: redColor,
-                                            }}
-                                        >
-                                            Admin
-                                        </span>
-                                    )}
+                                    >
+                                        {section.label}
+                                    </h2>
+                                    <span
+                                        style={{
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            color: greyColor,
+                                        }}
+                                    >
+                                        {section.items.length}
+                                    </span>
                                 </div>
 
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "15px",
-                                            fontWeight: 700,
-                                            color: blackColor,
-                                            marginBottom: "4px",
-                                            lineHeight: 1.25,
-                                        }}
-                                    >
-                                        {action.title}
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "12px",
-                                            color: greyColor,
-                                            lineHeight: 1.35,
-                                        }}
-                                    >
-                                        {action.subtitle}
-                                    </div>
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns:
+                                            "repeat(2, minmax(0, 1fr))",
+                                        gap: "12px",
+                                    }}
+                                >
+                                    {section.items.map((action) => {
+                                        const barColor = getAccentColor(
+                                            action.accent
+                                        )
+                                        return (
+                                            <button
+                                                key={action.id}
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedAction(action)
+                                                }
+                                                style={{
+                                                    textAlign: "left",
+                                                    padding: "16px 14px",
+                                                    borderRadius: "14px",
+                                                    border: isLeadershipSection
+                                                        ? "1px solid rgba(250, 52, 37, 0.28)"
+                                                        : "1px solid rgba(0, 2, 1, 0.12)",
+                                                    backgroundColor:
+                                                        isLeadershipSection
+                                                            ? "rgba(250, 52, 37, 0.02)"
+                                                            : "#FFFFFF",
+                                                    cursor: "pointer",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    minHeight: "110px",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent:
+                                                            "space-between",
+                                                        marginBottom: "12px",
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            width: "28px",
+                                                            height: "3px",
+                                                            borderRadius:
+                                                                "999px",
+                                                            backgroundColor:
+                                                                barColor,
+                                                        }}
+                                                    />
+                                                    {isLeadershipSection && (
+                                                        <span
+                                                            style={{
+                                                                fontSize:
+                                                                    "10px",
+                                                                fontWeight: 700,
+                                                                letterSpacing:
+                                                                    "0.06em",
+                                                                textTransform:
+                                                                    "uppercase",
+                                                                color: redColor,
+                                                            }}
+                                                        >
+                                                            Admin
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <div
+                                                        style={{
+                                                            fontSize: "15px",
+                                                            fontWeight: 700,
+                                                            color: blackColor,
+                                                            marginBottom: "4px",
+                                                            lineHeight: 1.25,
+                                                        }}
+                                                    >
+                                                        {action.title}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            color: greyColor,
+                                                            lineHeight: 1.35,
+                                                        }}
+                                                    >
+                                                        {action.subtitle}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
-                            </button>
+                            </section>
                         )
                     })}
-                </section>
+                </div>
             </div>
 
+            {/* Footer */}
             <footer
                 style={{
                     maxWidth: "460px",
@@ -514,6 +609,7 @@ export function DashboardScreen({
                 risingtalentacademy.co.uk
             </footer>
 
+            {/* Action Detail Sheet */}
             {selectedAction && (
                 <div
                     onClick={() => setSelectedAction(null)}
