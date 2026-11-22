@@ -1,0 +1,22 @@
+{
+  "name": "Rising Talent Academy Staff Portal",
+  "short_name": "RTA Portal",
+  "start_url": "/Staff-Portal/",
+  "scope": "/Staff-Portal/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#000201",
+  "icons": [
+    {
+      "src": "/Staff-Portal/rta-logo",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/Staff-Portal/rta-logo",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
