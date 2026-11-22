@@ -13,7 +13,6 @@ self.addEventListener("push", (event) => {
     }
   }
 
-  // Safari requires showing a visible notification immediately on push
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
