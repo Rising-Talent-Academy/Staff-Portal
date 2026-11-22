@@ -89,27 +89,27 @@ const ALL_ACTIONS: ActionItem[] = [
             "Review your assigned RTA ID details, signed volunteer agreements, and core compliance policies.",
     },
 
-    // Journalism
+    /    // Journalism
     {
         id: "pitch-queue",
-        title: "Pitch & Article Queue",
-        subtitle: "Story ideas & assignments",
+        title: "Article Queue",
+        subtitle: "Your articles & current status",
         category: "journalist",
         accent: "red",
         status: "Open",
         featured: true,
         details:
-            "Submit new article pitches, claim assigned motorsport features, and track editorial status.",
+            "View your submitted articles and check their current status.",
     },
     {
         id: "submit-copy",
-        title: "Submit Copy",
-        subtitle: "Upload drafts for review",
+        title: "Submit Article",
+        subtitle: "Send in a new article",
         category: "journalist",
         accent: "blue",
         status: "Editorial Desk",
         details:
-            "Submit completed articles and race reports for Head of Journalism review before website publication.",
+            "Submit a new article with title, description, photo, text, and credits.",
     },
     {
         id: "press-notes",
