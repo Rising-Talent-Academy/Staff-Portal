@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { TeamDirectoryView } from "./TeamDirectoryView"
 import { ArticlesView } from "./ArticlesView"
+import { RoleManagerView } from "./RoleManagerView"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 
 export type PermissionGroup =
@@ -280,7 +281,7 @@ export function DashboardScreen({
     onSignOut,
 }: DashboardScreenProps) {
     const [activeView, setActiveView] = useState<
-        "directory" | "queue" | "submit" | "approvals" | null
+        "directory" | "queue" | "submit" | "approvals" | "role-manager" | null
     >(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
@@ -371,6 +372,30 @@ export function DashboardScreen({
                 <ArticlesView
                     user={user}
                     initialMode={activeView}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
+    if (activeView === "role-manager") {
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <RoleManagerView
+                    user={user}
                     onBack={() => setActiveView(null)}
                     redColor={redColor}
                     blueColor={blueColor}
@@ -1102,6 +1127,13 @@ export function DashboardScreen({
                                                                 ) {
                                                                     setActiveView(
                                                                         "approvals"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "id-manager"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "role-manager"
                                                                     )
                                                                 } else {
                                                                     setSelectedAction(
