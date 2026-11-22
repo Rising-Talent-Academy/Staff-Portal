@@ -68,6 +68,7 @@ export function ArticlesView({
     const [schedulingId, setSchedulingId] = useState<string | null>(null)
     const [scheduleDateTime, setScheduleDateTime] = useState("")
     const [actionBusyId, setActionBusyId] = useState<string | null>(null)
+    const [copiedId, setCopiedId] = useState<string | null>(null)
 
     // Submission / edit form state
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -292,7 +293,9 @@ export function ArticlesView({
 
         setActionBusyId(null)
         if (!error) {
-            setSuccessMsg("Approved — status updated to Approved.")
+            setSuccessMsg(
+                "Approved — tap 'Copy for Squarespace' to paste it into your website."
+            )
             await loadArticles()
         } else {
             setErrorMsg(error.message || "Could not approve article.")
@@ -373,11 +376,44 @@ export function ArticlesView({
             setSchedulingId(null)
             setScheduleDateTime("")
             setSuccessMsg(
-                "Scheduled — ready for Squarespace publish sync."
+                "Scheduled — tap 'Copy for Squarespace' when you set up the post."
             )
             await loadArticles()
         } else {
             setErrorMsg(error.message || "Could not schedule article.")
+        }
+    }
+
+    const handleCopyForSquarespace = async (item: ArticleRecord) => {
+        const lines: string[] = [item.title.trim()]
+
+        if (item.description?.trim()) {
+            lines.push("", item.description.trim())
+        }
+
+        if (item.article_body?.trim()) {
+            lines.push("", item.article_body.trim())
+        }
+
+        if (item.credits?.trim()) {
+            lines.push("", `Credits: ${item.credits.trim()}`)
+        }
+
+        const formattedText = lines.join("\n")
+
+        try {
+            await navigator.clipboard.writeText(formattedText)
+            setCopiedId(item.id)
+            setSuccessMsg(
+                "Copied! Paste into a new Squarespace blog post."
+            )
+            setTimeout(() => {
+                setCopiedId((prev) => (prev === item.id ? null : prev))
+            }, 3500)
+        } catch {
+            setErrorMsg(
+                "Could not copy automatically — open Review to select and copy the text."
+            )
         }
     }
 
@@ -1189,6 +1225,10 @@ export function ArticlesView({
                                     const isScheduleOpen =
                                         schedulingId === item.id
                                     const isBusy = actionBusyId === item.id
+                                    const isReadyForSite =
+                                        item.status === "approved" ||
+                                        item.status === "scheduled"
+                                    const isCopied = copiedId === item.id
 
                                     return (
                                         <div
@@ -1453,6 +1493,106 @@ export function ArticlesView({
                                                 )}
                                             </div>
 
+                                            {/* Squarespace Publish Helper Bar */}
+                                            {isReadyForSite && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "4px",
+                                                        padding: "10px 12px",
+                                                        borderRadius: "10px",
+                                                        backgroundColor:
+                                                            "#F4F7FC",
+                                                        border:
+                                                            "1px solid rgba(3, 78, 175, 0.2)",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent:
+                                                            "space-between",
+                                                        gap: "10px",
+                                                        flexWrap: "wrap",
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            fontWeight: 700,
+                                                            color: blackColor,
+                                                        }}
+                                                    >
+                                                        Website Publishing:
+                                                    </span>
+
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: "8px",
+                                                            flexWrap: "wrap",
+                                                        }}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleCopyForSquarespace(
+                                                                    item
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "7px 12px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "none",
+                                                                backgroundColor:
+                                                                    isCopied
+                                                                        ? blueColor
+                                                                        : blackColor,
+                                                                color:
+                                                                    "#FFFFFF",
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            {isCopied
+                                                                ? "Copied!"
+                                                                : "Copy for Squarespace"}
+                                                        </button>
+
+                                                        {item.photo_url && (
+                                                            <a
+                                                                href={
+                                                                    item.photo_url
+                                                                }
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{
+                                                                    padding:
+                                                                        "7px 12px",
+                                                                    borderRadius:
+                                                                        "8px",
+                                                                    border:
+                                                                        "1px solid rgba(0, 2, 1, 0.16)",
+                                                                    backgroundColor:
+                                                                        "#FFFFFF",
+                                                                    color:
+                                                                        blackColor,
+                                                                    fontSize:
+                                                                        "12px",
+                                                                    fontWeight: 700,
+                                                                    textDecoration:
+                                                                        "none",
+                                                                }}
+                                                            >
+                                                                Open Photo
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Reject Reason Box */}
                                             {isRejectOpen && (
                                                 <div
@@ -1576,7 +1716,7 @@ export function ArticlesView({
                                                 </div>
                                             )}
 
-                                            {/* Schedule Date/Time Box (Squarespace sync hook) */}
+                                            {/* Schedule Date/Time Box */}
                                             {isScheduleOpen && (
                                                 <div
                                                     style={{
@@ -1602,7 +1742,7 @@ export function ArticlesView({
                                                         }}
                                                     >
                                                         Schedule publish date &
-                                                        time (Squarespace queue)
+                                                        time
                                                     </label>
                                                     <input
                                                         id={`schedule-dt-${item.id}`}
@@ -1869,6 +2009,65 @@ export function ArticlesView({
                             >
                                 Credits: {reviewingArticle.credits}
                             </p>
+                        )}
+
+                        {(reviewingArticle.status === "approved" ||
+                            reviewingArticle.status === "scheduled") && (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    gap: "8px",
+                                    flexWrap: "wrap",
+                                    paddingTop: "6px",
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        handleCopyForSquarespace(
+                                            reviewingArticle
+                                        )
+                                    }
+                                    style={{
+                                        padding: "9px 14px",
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        backgroundColor:
+                                            copiedId === reviewingArticle.id
+                                                ? blueColor
+                                                : blackColor,
+                                        color: "#FFFFFF",
+                                        fontSize: "12px",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {copiedId === reviewingArticle.id
+                                        ? "Copied!"
+                                        : "Copy for Squarespace"}
+                                </button>
+
+                                {reviewingArticle.photo_url && (
+                                    <a
+                                        href={reviewingArticle.photo_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                            padding: "9px 14px",
+                                            borderRadius: "8px",
+                                            border:
+                                                "1px solid rgba(0, 2, 1, 0.16)",
+                                            backgroundColor: "#FFFFFF",
+                                            color: blackColor,
+                                            fontSize: "12px",
+                                            fontWeight: 700,
+                                            textDecoration: "none",
+                                        }}
+                                    >
+                                        Open Photo
+                                    </a>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
