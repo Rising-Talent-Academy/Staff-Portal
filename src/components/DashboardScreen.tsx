@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { TeamDirectoryView } from "./TeamDirectoryView"
 import { ArticlesView } from "./ArticlesView"
+import { subscribeDeviceToPush } from "../lib/pushNotifications"
 
 export type PermissionGroup =
     | "journalist"
@@ -294,6 +295,19 @@ export function DashboardScreen({
     const [openSections, setOpenSections] = useState<
         Record<ActionCategory, boolean>
     >(() => getDefaultOpenSections(user.permissionGroup))
+    const [pushStatusMsg, setPushStatusMsg] = useState("")
+    const [pushBusy, setPushBusy] = useState(false)
+
+    const handleEnablePush = async () => {
+        setPushBusy(true)
+        setPushStatusMsg("")
+        const result = await subscribeDeviceToPush(
+            user.rtaId,
+            user.permissionGroup
+        )
+        setPushStatusMsg(result.message)
+        setPushBusy(false)
+    }
 
     useEffect(() => {
         setOpenSections(getDefaultOpenSections(user.permissionGroup))
@@ -616,7 +630,7 @@ export function DashboardScreen({
                             "linear-gradient(135deg, #000201 0%, #0E131F 65%, #071936 100%)",
                         color: "#FFFFFF",
                         overflow: "hidden",
-                        marginBottom: "22px",
+                        marginBottom: "18px",
                         boxShadow: "0 16px 34px rgba(0, 2, 1, 0.18)",
                     }}
                 >
@@ -762,6 +776,64 @@ export function DashboardScreen({
                         </div>
                     </div>
                 </section>
+
+                {/* Leadership Push Notifications Card */}
+                {user.permissionGroup === "leadership" && (
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            padding: "12px 16px",
+                            marginBottom: "18px",
+                            borderRadius: "14px",
+                            backgroundColor: "#FFFFFF",
+                            border: "1px solid rgba(3, 78, 175, 0.2)",
+                            boxShadow: "0 4px 14px rgba(0, 2, 1, 0.04)",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: "13px",
+                                    fontWeight: 800,
+                                    color: blackColor,
+                                }}
+                            >
+                                Review Alerts (iPhone & Android)
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: "11px",
+                                    color: greyColor,
+                                }}
+                            >
+                                {pushStatusMsg ||
+                                    "Get notified when new articles or content arrive for review."}
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={pushBusy}
+                            onClick={handleEnablePush}
+                            style={{
+                                padding: "8px 13px",
+                                borderRadius: "9px",
+                                border: "none",
+                                backgroundColor: blueColor,
+                                color: "#FFFFFF",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                cursor: pushBusy ? "not-allowed" : "pointer",
+                            }}
+                        >
+                            {pushBusy ? "Enabling..." : "Enable Alerts"}
+                        </button>
+                    </div>
+                )}
 
                 {/* Sections Toolbar */}
                 <div
