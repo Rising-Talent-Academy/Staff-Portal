@@ -36,7 +36,6 @@ interface DashboardScreenProps {
 }
 
 const ALL_ACTIONS: ActionItem[] = [
-    // Core (Visible to Everyone)
     {
         id: "briefings",
         title: "Team Briefings",
@@ -77,8 +76,6 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Review your assigned RTA ID details, signed volunteer agreements, and core compliance policies.",
     },
-
-    // Journalist Actions
     {
         id: "pitch-queue",
         title: "Pitch & Article Queue",
@@ -109,8 +106,6 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Access verified driver profiles, championship standings, and official press reference notes.",
     },
-
-    // Content Creator Actions
     {
         id: "content-calendar",
         title: "Content Calendar",
@@ -141,8 +136,6 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
     },
-
-    // Leadership & Admin Actions
     {
         id: "approvals",
         title: "Editorial & Content Approvals",
@@ -249,7 +242,6 @@ export function DashboardScreen({
                     margin: "0 auto",
                 }}
             >
-                {/* Header */}
                 <header
                     style={{
                         display: "flex",
@@ -309,7 +301,6 @@ export function DashboardScreen({
                     </button>
                 </header>
 
-                {/* Accent Line */}
                 <div
                     style={{
                         width: "100%",
@@ -320,7 +311,6 @@ export function DashboardScreen({
                     }}
                 />
 
-                {/* Name | Role & RTA ID Card */}
                 <section
                     style={{
                         padding: "16px 18px",
@@ -416,7 +406,6 @@ export function DashboardScreen({
                     </div>
                 </section>
 
-                {/* 2-Column Role-Based Action Grid */}
                 <section
                     style={{
                         display: "grid",
@@ -510,7 +499,6 @@ export function DashboardScreen({
                 </section>
             </div>
 
-            {/* Footer */}
             <footer
                 style={{
                     maxWidth: "460px",
@@ -526,7 +514,6 @@ export function DashboardScreen({
                 risingtalentacademy.co.uk
             </footer>
 
-            {/* Action Detail Sheet */}
             {selectedAction && (
                 <div
                     onClick={() => setSelectedAction(null)}
