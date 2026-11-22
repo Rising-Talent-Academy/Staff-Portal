@@ -141,7 +141,9 @@ export function RoleManagerView({
         }
 
         if (createAuthAccount && !cleanEmail) {
-            setErrorMsg("Email is required when creating a Supabase Auth account.")
+            setErrorMsg(
+                "Email is required when creating a Supabase Auth account."
+            )
             return
         }
 
@@ -188,14 +190,17 @@ export function RoleManagerView({
             setUuid(finalUuid)
         }
 
-        const { error } = await supabase.from("profiles").insert({
-            id: finalUuid,
-            full_name: cleanName,
-            rta_id: cleanRtaId,
-            role: cleanRole,
-            permission_group: permissionGroup,
-            email: cleanEmail || null,
-        })
+        const { error } = await supabase.from("profiles").upsert(
+            {
+                id: finalUuid,
+                full_name: cleanName,
+                rta_id: cleanRtaId,
+                role: cleanRole,
+                permission_group: permissionGroup,
+                email: cleanEmail || null,
+            },
+            { onConflict: "id" }
+        )
 
         if (error) {
             setErrorMsg(error.message)
