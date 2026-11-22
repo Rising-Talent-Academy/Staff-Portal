@@ -28,6 +28,20 @@ const PERMISSION_OPTIONS: { value: PermissionGroup; label: string }[] = [
     { value: "leadership", label: "Leadership & Admin" },
 ]
 
+const UUID_REGEX =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function generateUuid(): string {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+        return crypto.randomUUID()
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0
+        const v = c === "x" ? r : (r & 0x3) | 0x8
+        return v.toString(16)
+    })
+}
+
 function normalizeGroup(value: string): PermissionGroup {
     if (
         value === "journalist" ||
@@ -65,6 +79,8 @@ export function RoleManagerView({
     )
 
     // New RTA ID form state
+    const [createAuthAccount, setCreateAuthAccount] = useState(true)
+    const [uuid, setUuid] = useState(() => generateUuid())
     const [fullName, setFullName] = useState("")
     const [rtaId, setRtaId] = useState("")
     const [roleTitle, setRoleTitle] = useState("")
@@ -81,12 +97,18 @@ export function RoleManagerView({
     const [editGroup, setEditGroup] = useState<PermissionGroup>("journalist")
     const [savingId, setSavingId] = useState<string | null>(null)
 
+    // Delete state
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
+
     const loadProfiles = async () => {
         setLoading(true)
         setErrorMsg("")
         const { data, error } = await supabase
             .from("profiles")
-            .select("id, email, full_name, rta_id, role, permission_group, created_at")
+            .select(
+                "id, email, full_name, rta_id, role, permission_group, created_at"
+            )
             .order("created_at", { ascending: false })
 
         if (error) {
@@ -107,43 +129,83 @@ export function RoleManagerView({
         setStatusMsg("")
 
         const cleanName = fullName.trim()
-        const cleanRtaId = rtaId.trim().toUpperCase()
+        const cleanRtaId = rtaId.trim()
         const cleanRole = roleTitle.trim()
-        const cleanEmail = email.trim()
+        const cleanEmail = email.trim().toLowerCase()
+        let finalUuid = uuid.trim().toLowerCase()
+        let tempPassword = ""
 
         if (!cleanName || !cleanRtaId || !cleanRole) {
-            setErrorMsg("Please fill in Full Name, RTA ID, and Role.")
+            setErrorMsg("Please fill in Full Name, RTA ID, and Role Title.")
             return
+        }
+
+        if (createAuthAccount && !cleanEmail) {
+            setErrorMsg("Email is required when creating a Supabase Auth account.")
+            return
+        }
+
+        if (!createAuthAccount) {
+            if (!finalUuid || !UUID_REGEX.test(finalUuid)) {
+                setErrorMsg(
+                    "Please enter a valid UUID (e.g. 550e8400-e29b-41d4-a716-446655440000)."
+                )
+                return
+            }
         }
 
         setCreating(true)
 
-        const payload: {
-            id?: string
-            full_name: string
-            rta_id: string
-            role: string
-            permission_group: PermissionGroup
-            email?: string | null
-        } = {
+        if (createAuthAccount) {
+            const { data: fnData, error: fnError } =
+                await supabase.functions.invoke("create-staff-user", {
+                    body: {
+                        email: cleanEmail,
+                        full_name: cleanName,
+                        rta_id: cleanRtaId,
+                        role: cleanRole,
+                        permission_group: permissionGroup,
+                    },
+                })
+
+            if (fnError) {
+                setErrorMsg(fnError.message || "Failed to call create-staff-user.")
+                setCreating(false)
+                return
+            }
+
+            if (fnData?.error || !fnData?.id) {
+                setErrorMsg(
+                    fnData?.error ||
+                        "Edge Function did not return a valid Auth user ID."
+                )
+                setCreating(false)
+                return
+            }
+
+            finalUuid = String(fnData.id).trim().toLowerCase()
+            tempPassword = String(fnData.tempPassword || "RisingTalentAcademy")
+            setUuid(finalUuid)
+        }
+
+        const { error } = await supabase.from("profiles").insert({
+            id: finalUuid,
             full_name: cleanName,
             rta_id: cleanRtaId,
             role: cleanRole,
             permission_group: permissionGroup,
             email: cleanEmail || null,
-        }
-
-        // Generate a UUID if id has no default in Postgres
-        if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-            payload.id = crypto.randomUUID()
-        }
-
-        const { error } = await supabase.from("profiles").insert(payload)
+        })
 
         if (error) {
             setErrorMsg(error.message)
         } else {
-            setStatusMsg(`Issued ${cleanRtaId} to ${cleanName}.`)
+            setStatusMsg(
+                createAuthAccount
+                    ? `Created Auth account & issued ${cleanRtaId} to ${cleanName}. Temporary password: ${tempPassword}`
+                    : `Issued ${cleanRtaId} to ${cleanName}.`
+            )
+            setUuid(generateUuid())
             setFullName("")
             setRtaId("")
             setRoleTitle("")
@@ -158,6 +220,7 @@ export function RoleManagerView({
     const startEditing = (row: ProfileRow) => {
         setErrorMsg("")
         setStatusMsg("")
+        setConfirmDeleteId(null)
         setEditingId(row.id)
         setEditFullName(row.full_name || "")
         setEditRole(row.role || "")
@@ -201,6 +264,32 @@ export function RoleManagerView({
         setSavingId(null)
     }
 
+    const handleDeleteProfile = async (row: ProfileRow) => {
+        setErrorMsg("")
+        setStatusMsg("")
+        setDeletingId(row.id)
+
+        const { error } = await supabase
+            .from("profiles")
+            .delete()
+            .eq("id", row.id)
+
+        if (error) {
+            setErrorMsg(error.message)
+        } else {
+            setStatusMsg(
+                `Removed ${row.full_name || row.rta_id} (${row.rta_id}) from roster.`
+            )
+            setConfirmDeleteId(null)
+            if (editingId === row.id) {
+                setEditingId(null)
+            }
+            await loadProfiles()
+        }
+
+        setDeletingId(null)
+    }
+
     const filteredProfiles = useMemo(() => {
         const q = searchQuery.trim().toLowerCase()
         return profiles.filter((row) => {
@@ -214,7 +303,8 @@ export function RoleManagerView({
                 (row.full_name || "").toLowerCase().includes(q) ||
                 (row.rta_id || "").toLowerCase().includes(q) ||
                 (row.role || "").toLowerCase().includes(q) ||
-                (row.email || "").toLowerCase().includes(q)
+                (row.email || "").toLowerCase().includes(q) ||
+                (row.id || "").toLowerCase().includes(q)
             )
         })
     }, [profiles, searchQuery, groupFilter])
@@ -381,6 +471,102 @@ export function RoleManagerView({
                 </div>
 
                 <form onSubmit={handleCreateProfile}>
+                    {/* Toggle Auth Account Creation */}
+                    <div
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "12px",
+                            backgroundColor: "#F9FAFC",
+                            border: "1px solid rgba(0, 2, 1, 0.09)",
+                            marginBottom: "12px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <label
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: blackColor,
+                                cursor: "pointer",
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={createAuthAccount}
+                                onChange={(e) =>
+                                    setCreateAuthAccount(e.target.checked)
+                                }
+                            />
+                            Create Supabase Auth login (Temp password:{" "}
+                            <code>RisingTalentAcademy</code>)
+                        </label>
+                    </div>
+
+                    {/* UUID Field */}
+                    <div style={{ marginBottom: "12px" }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: "5px",
+                            }}
+                        >
+                            <label
+                                style={{ ...labelStyle, marginBottom: 0 }}
+                                htmlFor="new-uuid"
+                            >
+                                {createAuthAccount
+                                    ? "UUID (Auto-assigned from Auth User)"
+                                    : "UUID (Required)"}
+                            </label>
+                            {!createAuthAccount && (
+                                <button
+                                    type="button"
+                                    onClick={() => setUuid(generateUuid())}
+                                    style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        padding: 0,
+                                        fontSize: "11px",
+                                        fontWeight: 700,
+                                        color: blueColor,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Generate UUID
+                                </button>
+                            )}
+                        </div>
+                        <input
+                            id="new-uuid"
+                            type="text"
+                            required={!createAuthAccount}
+                            disabled={createAuthAccount}
+                            placeholder={
+                                createAuthAccount
+                                    ? "Generated automatically when Auth user is created"
+                                    : "e.g. 550e8400-e29b-41d4-a716-446655440000"
+                            }
+                            value={createAuthAccount ? "" : uuid}
+                            onChange={(e) => setUuid(e.target.value)}
+                            style={{
+                                ...inputStyle,
+                                opacity: createAuthAccount ? 0.65 : 1,
+                                fontFamily:
+                                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                fontSize: "12px",
+                            }}
+                        />
+                    </div>
+
                     <div
                         style={{
                             display: "grid",
@@ -392,11 +578,12 @@ export function RoleManagerView({
                     >
                         <div>
                             <label style={labelStyle} htmlFor="new-full-name">
-                                Full Name
+                                Full Name (Required)
                             </label>
                             <input
                                 id="new-full-name"
                                 type="text"
+                                required
                                 placeholder="e.g. Jordan Taylor"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
@@ -406,12 +593,13 @@ export function RoleManagerView({
 
                         <div>
                             <label style={labelStyle} htmlFor="new-rta-id">
-                                RTA ID
+                                RTA ID (Required)
                             </label>
                             <input
                                 id="new-rta-id"
                                 type="text"
-                                placeholder="e.g. J.TAYLOR1"
+                                required
+                                placeholder="e.g. J.Taylor1"
                                 value={rtaId}
                                 onChange={(e) => setRtaId(e.target.value)}
                                 style={inputStyle}
@@ -420,11 +608,12 @@ export function RoleManagerView({
 
                         <div>
                             <label style={labelStyle} htmlFor="new-role">
-                                Role Title
+                                Role Title (Required)
                             </label>
                             <input
                                 id="new-role"
                                 type="text"
+                                required
                                 placeholder="e.g. Motorsport Journalist"
                                 value={roleTitle}
                                 onChange={(e) => setRoleTitle(e.target.value)}
@@ -460,11 +649,14 @@ export function RoleManagerView({
 
                     <div style={{ marginBottom: "14px" }}>
                         <label style={labelStyle} htmlFor="new-email">
-                            Email (Optional)
+                            {createAuthAccount
+                                ? "Email (Required for Auth)"
+                                : "Email (Optional)"}
                         </label>
                         <input
                             id="new-email"
                             type="email"
+                            required={createAuthAccount}
                             placeholder="name@example.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -487,7 +679,13 @@ export function RoleManagerView({
                             cursor: creating ? "not-allowed" : "pointer",
                         }}
                     >
-                        {creating ? "Issuing RTA ID..." : "Issue RTA ID"}
+                        {creating
+                            ? createAuthAccount
+                                ? "Creating Auth User & Issuing RTA ID..."
+                                : "Issuing RTA ID..."
+                            : createAuthAccount
+                              ? "Create Auth User & Issue RTA ID"
+                              : "Issue RTA ID"}
                     </button>
                 </form>
             </section>
@@ -550,7 +748,7 @@ export function RoleManagerView({
                 >
                     <input
                         type="text"
-                        placeholder="Search name, RTA ID, or role..."
+                        placeholder="Search name, RTA ID, role, or UUID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={inputStyle}
@@ -607,6 +805,8 @@ export function RoleManagerView({
                         {filteredProfiles.map((row) => {
                             const isEditing = editingId === row.id
                             const isSaving = savingId === row.id
+                            const isConfirmingDelete = confirmDeleteId === row.id
+                            const isDeleting = deletingId === row.id
                             const isLeadership =
                                 normalizeGroup(row.permission_group) ===
                                 "leadership"
@@ -764,102 +964,261 @@ export function RoleManagerView({
                                             </div>
                                         </div>
                                     ) : (
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent:
-                                                    "space-between",
-                                                gap: "12px",
-                                                flexWrap: "wrap",
-                                            }}
-                                        >
-                                            <div>
+                                        <div>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    gap: "12px",
+                                                    flexWrap: "wrap",
+                                                }}
+                                            >
+                                                <div>
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: "8px",
+                                                            flexWrap: "wrap",
+                                                            marginBottom: "3px",
+                                                        }}
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                fontSize:
+                                                                    "14px",
+                                                                fontWeight: 800,
+                                                                color:
+                                                                    blackColor,
+                                                            }}
+                                                        >
+                                                            {row.full_name ||
+                                                                "Unnamed Staff"}
+                                                        </span>
+                                                        <span
+                                                            style={{
+                                                                padding:
+                                                                    "2px 8px",
+                                                                borderRadius:
+                                                                    "6px",
+                                                                backgroundColor:
+                                                                    "rgba(0, 2, 1, 0.07)",
+                                                                fontSize:
+                                                                    "11px",
+                                                                fontWeight: 800,
+                                                                color:
+                                                                    blackColor,
+                                                            }}
+                                                        >
+                                                            {row.rta_id}
+                                                        </span>
+                                                        <span
+                                                            style={{
+                                                                padding:
+                                                                    "2px 8px",
+                                                                borderRadius:
+                                                                    "6px",
+                                                                backgroundColor:
+                                                                    isLeadership
+                                                                        ? "rgba(250, 52, 37, 0.12)"
+                                                                        : "rgba(3, 78, 175, 0.12)",
+                                                                fontSize:
+                                                                    "11px",
+                                                                fontWeight: 700,
+                                                                color:
+                                                                    isLeadership
+                                                                        ? redColor
+                                                                        : blueColor,
+                                                            }}
+                                                        >
+                                                            {groupBadgeLabel(
+                                                                row.permission_group
+                                                            )}
+                                                        </span>
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            color: greyColor,
+                                                        }}
+                                                    >
+                                                        {row.role ||
+                                                            "No role set"}
+                                                        {row.email
+                                                            ? ` • ${row.email}`
+                                                            : ""}
+                                                    </div>
+
+                                                    <div
+                                                        style={{
+                                                            fontSize: "11px",
+                                                            color: greyColor,
+                                                            marginTop: "3px",
+                                                            fontFamily:
+                                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                                        }}
+                                                    >
+                                                        UUID: {row.id}
+                                                    </div>
+                                                </div>
+
                                                 <div
                                                     style={{
                                                         display: "flex",
                                                         alignItems: "center",
                                                         gap: "8px",
-                                                        flexWrap: "wrap",
-                                                        marginBottom: "3px",
                                                     }}
                                                 >
-                                                    <span
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            startEditing(row)
+                                                        }
                                                         style={{
-                                                            fontSize: "14px",
-                                                            fontWeight: 800,
-                                                            color: blackColor,
-                                                        }}
-                                                    >
-                                                        {row.full_name ||
-                                                            "Unnamed Staff"}
-                                                    </span>
-                                                    <span
-                                                        style={{
-                                                            padding: "2px 8px",
+                                                            padding:
+                                                                "7px 12px",
                                                             borderRadius:
-                                                                "6px",
+                                                                "8px",
+                                                            border:
+                                                                "1px solid rgba(0, 2, 1, 0.14)",
                                                             backgroundColor:
-                                                                "rgba(0, 2, 1, 0.07)",
-                                                            fontSize: "11px",
-                                                            fontWeight: 800,
+                                                                "#FFFFFF",
                                                             color: blackColor,
-                                                        }}
-                                                    >
-                                                        {row.rta_id}
-                                                    </span>
-                                                    <span
-                                                        style={{
-                                                            padding: "2px 8px",
-                                                            borderRadius:
-                                                                "6px",
-                                                            backgroundColor:
-                                                                isLeadership
-                                                                    ? "rgba(250, 52, 37, 0.12)"
-                                                                    : "rgba(3, 78, 175, 0.12)",
-                                                            fontSize: "11px",
+                                                            fontSize: "12px",
                                                             fontWeight: 700,
-                                                            color: isLeadership
-                                                                ? redColor
-                                                                : blueColor,
+                                                            cursor: "pointer",
                                                         }}
                                                     >
-                                                        {groupBadgeLabel(
-                                                            row.permission_group
-                                                        )}
-                                                    </span>
-                                                </div>
+                                                        Edit
+                                                    </button>
 
-                                                <div
-                                                    style={{
-                                                        fontSize: "12px",
-                                                        color: greyColor,
-                                                    }}
-                                                >
-                                                    {row.role || "No role set"}
-                                                    {row.email
-                                                        ? ` • ${row.email}`
-                                                        : ""}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setConfirmDeleteId(
+                                                                isConfirmingDelete
+                                                                    ? null
+                                                                    : row.id
+                                                            )
+                                                        }
+                                                        style={{
+                                                            padding:
+                                                                "7px 12px",
+                                                            borderRadius:
+                                                                "8px",
+                                                            border: `1px solid ${redColor}`,
+                                                            backgroundColor:
+                                                                "rgba(250, 52, 37, 0.08)",
+                                                            color: redColor,
+                                                            fontSize: "12px",
+                                                            fontWeight: 700,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </button>
                                                 </div>
                                             </div>
 
-                                            <button
-                                                type="button"
-                                                onClick={() => startEditing(row)}
-                                                style={{
-                                                    padding: "7px 12px",
-                                                    borderRadius: "8px",
-                                                    border:
-                                                        "1px solid rgba(0, 2, 1, 0.14)",
-                                                    backgroundColor: "#FFFFFF",
-                                                    color: blackColor,
-                                                    fontSize: "12px",
-                                                    fontWeight: 700,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                Edit
-                                            </button>
+                                            {isConfirmingDelete && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "10px",
+                                                        paddingTop: "10px",
+                                                        borderTop:
+                                                            "1px solid rgba(250, 52, 37, 0.2)",
+                                                        display: "flex",
+                                                        alignItems:
+                                                            "center",
+                                                        justifyContent:
+                                                            "space-between",
+                                                        gap: "10px",
+                                                        flexWrap: "wrap",
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            fontWeight: 700,
+                                                            color: redColor,
+                                                        }}
+                                                    >
+                                                        Delete{" "}
+                                                        {row.full_name ||
+                                                            row.rta_id}{" "}
+                                                        permanently?
+                                                    </span>
+
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: "8px",
+                                                        }}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setConfirmDeleteId(
+                                                                    null
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "6px 11px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "1px solid rgba(0, 2, 1, 0.14)",
+                                                                backgroundColor:
+                                                                    "#FFFFFF",
+                                                                color:
+                                                                    blackColor,
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Keep
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isDeleting}
+                                                            onClick={() =>
+                                                                handleDeleteProfile(
+                                                                    row
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "6px 12px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border: "none",
+                                                                backgroundColor:
+                                                                    redColor,
+                                                                color:
+                                                                    "#FFFFFF",
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    isDeleting
+                                                                        ? "not-allowed"
+                                                                        : "pointer",
+                                                            }}
+                                                        >
+                                                            {isDeleting
+                                                                ? "Deleting..."
+                                                                : "Confirm Delete"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
