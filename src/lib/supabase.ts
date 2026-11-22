@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
 export type PermissionGroup = "journalist" | "creator" | "both" | "leadership"
 
@@ -15,13 +15,17 @@ export interface StaffProfile {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY")
-}
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase: SupabaseClient | null = isSupabaseConfigured
+    ? createClient(supabaseUrl!, supabaseAnonKey!)
+    : null
 
 export async function fetchStaffProfile(userId: string): Promise<StaffProfile> {
+    if (!supabase) {
+        throw new Error("Supabase is not configured yet.")
+    }
+
     const { data, error } = await supabase
         .from("profiles")
         .select("id, email, full_name, rta_id, role, permission_group, created_at")
@@ -33,19 +37,4 @@ export async function fetchStaffProfile(userId: string): Promise<StaffProfile> {
     }
 
     return data as StaffProfile
-}
-
-export async function signInStaff(email: string, password: string): Promise<StaffProfile> {
-    const cleanEmail = email.trim().toLowerCase()
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-    })
-
-    if (error || !data.user) {
-        throw new Error(error?.message || "Invalid email or password.")
-    }
-
-    return await fetchStaffProfile(data.user.id)
 }
