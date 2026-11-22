@@ -23,6 +23,7 @@ interface ActionItem {
     accent: "red" | "blue" | "black"
     status: string
     details: string
+    featured?: boolean
 }
 
 interface ActionSection {
@@ -50,6 +51,7 @@ const ALL_ACTIONS: ActionItem[] = [
         category: "core",
         accent: "red",
         status: "Pinned Update",
+        featured: true,
         details:
             "Read leadership announcements, weekly campaign priorities, and internal operational updates.",
     },
@@ -92,6 +94,7 @@ const ALL_ACTIONS: ActionItem[] = [
         category: "journalist",
         accent: "red",
         status: "Open",
+        featured: true,
         details:
             "Submit new article pitches, claim assigned motorsport features, and track editorial status.",
     },
@@ -124,6 +127,7 @@ const ALL_ACTIONS: ActionItem[] = [
         category: "creator",
         accent: "red",
         status: "Scheduled",
+        featured: true,
         details:
             "Check upcoming posting dates, campaign deadlines, and assigned short-form video slots.",
     },
@@ -156,6 +160,7 @@ const ALL_ACTIONS: ActionItem[] = [
         category: "leadership",
         accent: "red",
         status: "Admin",
+        featured: true,
         details:
             "Review pending articles and social media edits, leave editorial feedback, and approve items for release.",
     },
@@ -277,18 +282,19 @@ export function DashboardScreen({
             ? "iPhone (Safari): Tap Share → Add to Home Screen."
             : platformHint === "android"
               ? "Android (Chrome): Tap ⋮ → Add to Home screen."
-              : "Pin to your iPhone or Android Home Screen for instant app access."
+              : "Add to your iPhone or Android Home Screen for full-screen app access."
 
     return (
         <div
             style={{
                 minHeight: "100dvh",
-                backgroundColor: "#F7F8FA",
+                background:
+                    "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
                 color: blackColor,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "16px 20px 26px",
+                padding: "18px 18px 28px",
                 boxSizing: "border-box",
                 fontFamily:
                     "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -296,7 +302,7 @@ export function DashboardScreen({
         >
             <div
                 style={{
-                    maxWidth: "460px",
+                    maxWidth: "680px",
                     width: "100%",
                     margin: "0 auto",
                 }}
@@ -308,18 +314,18 @@ export function DashboardScreen({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            gap: "10px",
-                            padding: "11px 13px",
+                            gap: "12px",
+                            padding: "11px 14px",
                             marginBottom: "14px",
-                            borderRadius: "12px",
+                            borderRadius: "14px",
                             backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.1)",
-                            boxShadow: "0 4px 14px rgba(0, 2, 1, 0.04)",
+                            border: "1px solid rgba(0, 2, 1, 0.09)",
+                            boxShadow: "0 6px 18px rgba(0, 2, 1, 0.05)",
                         }}
                     >
                         <div
                             style={{
-                                width: "3px",
+                                width: "4px",
                                 alignSelf: "stretch",
                                 borderRadius: "999px",
                                 background: `linear-gradient(180deg, ${redColor}, ${blueColor})`,
@@ -331,13 +337,13 @@ export function DashboardScreen({
                             <div
                                 style={{
                                     fontSize: "12px",
-                                    fontWeight: 700,
+                                    fontWeight: 800,
                                     letterSpacing: "0.02em",
                                     color: blackColor,
                                     marginBottom: "2px",
                                 }}
                             >
-                                Get the Home Screen App
+                                Install RTA Staff Portal App
                             </div>
                             <div
                                 style={{
@@ -362,14 +368,14 @@ export function DashboardScreen({
                                 type="button"
                                 onClick={() => setInstallSheetOpen(true)}
                                 style={{
-                                    padding: "6px 10px",
-                                    borderRadius: "8px",
+                                    padding: "7px 11px",
+                                    borderRadius: "9px",
                                     border: "none",
                                     backgroundColor: blueColor,
                                     color: "#FFFFFF",
                                     fontSize: "11px",
                                     fontWeight: 700,
-                                    letterSpacing: "0.03em",
+                                    letterSpacing: "0.04em",
                                     textTransform: "uppercase",
                                     cursor: "pointer",
                                 }}
@@ -384,7 +390,7 @@ export function DashboardScreen({
                                     border: "none",
                                     background: "transparent",
                                     color: greyColor,
-                                    fontSize: "17px",
+                                    fontSize: "18px",
                                     fontWeight: 600,
                                     lineHeight: 1,
                                     padding: "4px",
@@ -403,32 +409,49 @@ export function DashboardScreen({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        padding: "6px 0 14px",
+                        padding: "6px 2px 16px",
                     }}
                 >
                     <div
                         style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "10px",
+                            gap: "12px",
                         }}
                     >
                         {logoUrl && (
-                            <img
-                                src={logoUrl}
-                                alt="Rising Talent Academy"
+                            <div
                                 style={{
-                                    height: "34px",
-                                    width: "auto",
-                                    objectFit: "contain",
-                                    display: "block",
+                                    width: "42px",
+                                    height: "42px",
+                                    borderRadius: "12px",
+                                    backgroundColor: "#FFFFFF",
+                                    border: "1px solid rgba(0, 2, 1, 0.08)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: "5px",
+                                    boxSizing: "border-box",
+                                    boxShadow: "0 4px 12px rgba(0, 2, 1, 0.05)",
                                 }}
-                            />
+                            >
+                                <img
+                                    src={logoUrl}
+                                    alt="Rising Talent Academy"
+                                    style={{
+                                        maxHeight: "100%",
+                                        maxWidth: "100%",
+                                        width: "auto",
+                                        objectFit: "contain",
+                                        display: "block",
+                                    }}
+                                />
+                            </div>
                         )}
                         <div>
                             <div
                                 style={{
-                                    fontSize: "11px",
+                                    fontSize: "12px",
                                     fontWeight: 800,
                                     letterSpacing: "0.16em",
                                     textTransform: "uppercase",
@@ -439,14 +462,12 @@ export function DashboardScreen({
                             </div>
                             <div
                                 style={{
-                                    fontSize: "10px",
+                                    fontSize: "11px",
                                     fontWeight: 600,
-                                    letterSpacing: "0.08em",
-                                    textTransform: "uppercase",
                                     color: greyColor,
                                 }}
                             >
-                                Operations Hub
+                                Rising Talent Academy
                             </div>
                         </div>
                     </div>
@@ -455,41 +476,42 @@ export function DashboardScreen({
                         type="button"
                         onClick={onSignOut}
                         style={{
-                            padding: "8px 13px",
-                            borderRadius: "9px",
+                            padding: "8px 14px",
+                            borderRadius: "10px",
                             border: "1px solid rgba(0, 2, 1, 0.14)",
                             backgroundColor: "#FFFFFF",
                             color: blackColor,
                             fontSize: "12px",
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: "pointer",
-                            boxShadow: "0 2px 6px rgba(0, 2, 1, 0.04)",
+                            boxShadow: "0 3px 10px rgba(0, 2, 1, 0.04)",
                         }}
                     >
                         Sign Out
                     </button>
                 </header>
 
-                {/* Executive Paddock Identity Card */}
+                {/* Executive Credential Card */}
                 <section
                     style={{
-                        borderRadius: "18px",
-                        backgroundColor: blackColor,
+                        borderRadius: "20px",
+                        background:
+                            "linear-gradient(135deg, #000201 0%, #0E131F 65%, #071936 100%)",
                         color: "#FFFFFF",
                         overflow: "hidden",
-                        marginBottom: "24px",
-                        boxShadow: "0 12px 28px rgba(0, 2, 1, 0.14)",
+                        marginBottom: "26px",
+                        boxShadow: "0 16px 34px rgba(0, 2, 1, 0.18)",
                     }}
                 >
                     <div
                         style={{
                             height: "4px",
                             width: "100%",
-                            background: `linear-gradient(90deg, ${redColor} 0%, ${redColor} 45%, ${blueColor} 100%)`,
+                            background: `linear-gradient(90deg, ${redColor} 0%, ${redColor} 48%, ${blueColor} 100%)`,
                         }}
                     />
 
-                    <div style={{ padding: "18px 20px 20px" }}>
+                    <div style={{ padding: "20px 22px 22px" }}>
                         <div
                             style={{
                                 display: "flex",
@@ -501,35 +523,36 @@ export function DashboardScreen({
                             <span
                                 style={{
                                     fontSize: "10px",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.16em",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.18em",
                                     textTransform: "uppercase",
-                                    color: "rgba(255, 255, 255, 0.58)",
+                                    color: "rgba(255, 255, 255, 0.56)",
                                 }}
                             >
-                                Active Credential
+                                Paddock Pass
                             </span>
                             <span
                                 style={{
                                     display: "inline-flex",
                                     alignItems: "center",
-                                    gap: "5px",
+                                    gap: "6px",
                                     fontSize: "10px",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.1em",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.12em",
                                     textTransform: "uppercase",
                                     color: "#FFFFFF",
                                 }}
                             >
                                 <span
                                     style={{
-                                        width: "6px",
-                                        height: "6px",
+                                        width: "7px",
+                                        height: "7px",
                                         borderRadius: "999px",
                                         backgroundColor: redColor,
+                                        boxShadow: `0 0 8px ${redColor}`,
                                     }}
                                 />
-                                Live
+                                Active
                             </span>
                         </div>
 
@@ -539,12 +562,12 @@ export function DashboardScreen({
                                 flexWrap: "wrap",
                                 alignItems: "baseline",
                                 gap: "8px",
-                                marginBottom: "14px",
+                                marginBottom: "16px",
                             }}
                         >
                             <span
                                 style={{
-                                    fontSize: "20px",
+                                    fontSize: "22px",
                                     fontWeight: 800,
                                     letterSpacing: "-0.02em",
                                     color: "#FFFFFF",
@@ -554,7 +577,7 @@ export function DashboardScreen({
                             </span>
                             <span
                                 style={{
-                                    color: "rgba(255, 255, 255, 0.35)",
+                                    color: "rgba(255, 255, 255, 0.32)",
                                     fontSize: "15px",
                                     fontWeight: 400,
                                 }}
@@ -564,8 +587,8 @@ export function DashboardScreen({
                             <span
                                 style={{
                                     fontSize: "14px",
-                                    fontWeight: 600,
-                                    color: "#7EB2FF",
+                                    fontWeight: 700,
+                                    color: "#84B6FF",
                                 }}
                             >
                                 {user.role}
@@ -582,12 +605,12 @@ export function DashboardScreen({
                         >
                             <span
                                 style={{
-                                    padding: "4px 10px",
-                                    borderRadius: "7px",
-                                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                                    border: "1px solid rgba(255, 255, 255, 0.14)",
+                                    padding: "5px 11px",
+                                    borderRadius: "8px",
+                                    backgroundColor: "rgba(255, 255, 255, 0.11)",
+                                    border: "1px solid rgba(255, 255, 255, 0.16)",
                                     fontSize: "12px",
-                                    fontWeight: 700,
+                                    fontWeight: 800,
                                     letterSpacing: "0.1em",
                                     textTransform: "uppercase",
                                     color: "#FFFFFF",
@@ -598,23 +621,23 @@ export function DashboardScreen({
 
                             <span
                                 style={{
-                                    padding: "4px 10px",
-                                    borderRadius: "7px",
+                                    padding: "5px 11px",
+                                    borderRadius: "8px",
                                     backgroundColor:
                                         user.permissionGroup === "leadership"
-                                            ? "rgba(250, 52, 37, 0.2)"
-                                            : "rgba(3, 78, 175, 0.32)",
+                                            ? "rgba(250, 52, 37, 0.22)"
+                                            : "rgba(3, 78, 175, 0.35)",
                                     border:
                                         user.permissionGroup === "leadership"
-                                            ? "1px solid rgba(250, 52, 37, 0.45)"
-                                            : "1px solid rgba(126, 178, 255, 0.35)",
+                                            ? "1px solid rgba(250, 52, 37, 0.5)"
+                                            : "1px solid rgba(132, 182, 255, 0.35)",
                                     fontSize: "11px",
                                     fontWeight: 700,
                                     letterSpacing: "0.05em",
                                     color:
                                         user.permissionGroup === "leadership"
-                                            ? "#FF7A70"
-                                            : "#A7C9FF",
+                                            ? "#FF857C"
+                                            : "#B5D2FF",
                                 }}
                             >
                                 {GROUP_LABELS[user.permissionGroup]}
@@ -628,12 +651,14 @@ export function DashboardScreen({
                     style={{
                         display: "flex",
                         flexDirection: "column",
-                        gap: "24px",
+                        gap: "26px",
                     }}
                 >
                     {sections.map((section) => {
                         const isLeadershipSection =
                             section.category === "leadership"
+                        const hasOddCount = section.items.length % 2 === 1
+
                         return (
                             <section key={section.category}>
                                 <div
@@ -641,31 +666,56 @@ export function DashboardScreen({
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
-                                        marginBottom: "11px",
-                                        paddingBottom: "6px",
+                                        marginBottom: "12px",
+                                        paddingBottom: "7px",
                                         borderBottom: isLeadershipSection
-                                            ? "1px solid rgba(250, 52, 37, 0.2)"
-                                            : "1px solid rgba(0, 2, 1, 0.08)",
+                                            ? "1px solid rgba(250, 52, 37, 0.24)"
+                                            : "1px solid rgba(0, 2, 1, 0.09)",
                                     }}
                                 >
-                                    <h2
+                                    <div
                                         style={{
-                                            margin: 0,
-                                            fontSize: "11px",
-                                            fontWeight: 800,
-                                            letterSpacing: "0.14em",
-                                            textTransform: "uppercase",
-                                            color: isLeadershipSection
-                                                ? redColor
-                                                : greyColor,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
                                         }}
                                     >
-                                        {section.label}
-                                    </h2>
+                                        <span
+                                            style={{
+                                                width: "8px",
+                                                height: "8px",
+                                                borderRadius: "2px",
+                                                transform: "rotate(45deg)",
+                                                backgroundColor:
+                                                    isLeadershipSection
+                                                        ? redColor
+                                                        : blueColor,
+                                                display: "inline-block",
+                                            }}
+                                        />
+                                        <h2
+                                            style={{
+                                                margin: 0,
+                                                fontSize: "11px",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.15em",
+                                                textTransform: "uppercase",
+                                                color: isLeadershipSection
+                                                    ? redColor
+                                                    : blackColor,
+                                            }}
+                                        >
+                                            {section.label}
+                                        </h2>
+                                    </div>
                                     <span
                                         style={{
                                             fontSize: "11px",
                                             fontWeight: 700,
+                                            padding: "2px 8px",
+                                            borderRadius: "999px",
+                                            backgroundColor:
+                                                "rgba(0, 2, 1, 0.06)",
                                             color: greyColor,
                                         }}
                                     >
@@ -681,12 +731,17 @@ export function DashboardScreen({
                                         gap: "12px",
                                     }}
                                 >
-                                    {section.items.map((action) => {
+                                    {section.items.map((action, index) => {
                                         const barColor = getAccentColor(
                                             action.accent
                                         )
                                         const isPressed =
                                             activeCardId === action.id
+                                        const isLastOddTile =
+                                            hasOddCount &&
+                                            index === section.items.length - 1
+                                        const isDarkFeatured =
+                                            Boolean(action.featured)
 
                                         return (
                                             <button
@@ -705,27 +760,43 @@ export function DashboardScreen({
                                                     setSelectedAction(action)
                                                 }
                                                 style={{
+                                                    gridColumn: isLastOddTile
+                                                        ? "1 / -1"
+                                                        : undefined,
                                                     textAlign: "left",
-                                                    padding: "16px 15px",
+                                                    padding: "17px 16px",
                                                     borderRadius: "16px",
-                                                    border: isLeadershipSection
-                                                        ? "1px solid rgba(250, 52, 37, 0.3)"
-                                                        : "1px solid rgba(0, 2, 1, 0.09)",
-                                                    backgroundColor: "#FFFFFF",
+                                                    border: isDarkFeatured
+                                                        ? `1px solid ${
+                                                              isLeadershipSection
+                                                                  ? "rgba(250, 52, 37, 0.55)"
+                                                                  : "rgba(255, 255, 255, 0.12)"
+                                                          }`
+                                                        : isLeadershipSection
+                                                          ? "1px solid rgba(250, 52, 37, 0.28)"
+                                                          : "1px solid rgba(0, 2, 1, 0.08)",
+                                                    background: isDarkFeatured
+                                                        ? `linear-gradient(135deg, ${blackColor} 0%, #141B2D 100%)`
+                                                        : "#FFFFFF",
+                                                    color: isDarkFeatured
+                                                        ? "#FFFFFF"
+                                                        : blackColor,
                                                     cursor: "pointer",
                                                     display: "flex",
                                                     flexDirection: "column",
                                                     justifyContent:
                                                         "space-between",
-                                                    minHeight: "116px",
+                                                    minHeight: isLastOddTile
+                                                        ? "96px"
+                                                        : "118px",
                                                     boxSizing: "border-box",
                                                     transform: isPressed
-                                                        ? "scale(0.98)"
+                                                        ? "scale(0.985)"
                                                         : "scale(1)",
                                                     transition:
                                                         "transform 120ms ease, box-shadow 120ms ease",
-                                                    boxShadow: isPressed
-                                                        ? "0 2px 6px rgba(0, 2, 1, 0.05)"
+                                                    boxShadow: isDarkFeatured
+                                                        ? "0 10px 24px rgba(0, 2, 1, 0.14)"
                                                         : "0 6px 18px rgba(0, 2, 1, 0.04)",
                                                 }}
                                             >
@@ -740,12 +811,16 @@ export function DashboardScreen({
                                                 >
                                                     <div
                                                         style={{
-                                                            width: "30px",
+                                                            width: "32px",
                                                             height: "3.5px",
                                                             borderRadius:
                                                                 "999px",
                                                             backgroundColor:
-                                                                barColor,
+                                                                isDarkFeatured &&
+                                                                action.accent ===
+                                                                    "black"
+                                                                    ? "#FFFFFF"
+                                                                    : barColor,
                                                         }}
                                                     />
                                                     <span
@@ -753,17 +828,19 @@ export function DashboardScreen({
                                                             fontSize: "10px",
                                                             fontWeight: 800,
                                                             letterSpacing:
-                                                                "0.08em",
+                                                                "0.1em",
                                                             textTransform:
                                                                 "uppercase",
-                                                            color: isLeadershipSection
-                                                                ? redColor
-                                                                : greyColor,
+                                                            color: isDarkFeatured
+                                                                ? "rgba(255, 255, 255, 0.72)"
+                                                                : isLeadershipSection
+                                                                  ? redColor
+                                                                  : greyColor,
                                                         }}
                                                     >
                                                         {isLeadershipSection
                                                             ? "Admin →"
-                                                            : "→"}
+                                                            : "Open →"}
                                                     </span>
                                                 </div>
 
@@ -774,7 +851,9 @@ export function DashboardScreen({
                                                             fontWeight: 700,
                                                             letterSpacing:
                                                                 "-0.01em",
-                                                            color: blackColor,
+                                                            color: isDarkFeatured
+                                                                ? "#FFFFFF"
+                                                                : blackColor,
                                                             marginBottom: "4px",
                                                             lineHeight: 1.25,
                                                         }}
@@ -784,7 +863,9 @@ export function DashboardScreen({
                                                     <div
                                                         style={{
                                                             fontSize: "12px",
-                                                            color: greyColor,
+                                                            color: isDarkFeatured
+                                                                ? "rgba(255, 255, 255, 0.68)"
+                                                                : greyColor,
                                                             lineHeight: 1.35,
                                                         }}
                                                     >
@@ -804,14 +885,15 @@ export function DashboardScreen({
             {/* Footer */}
             <footer
                 style={{
-                    maxWidth: "460px",
+                    maxWidth: "680px",
                     width: "100%",
-                    margin: "30px auto 0",
-                    paddingTop: "14px",
-                    borderTop: "1px solid rgba(0, 2, 1, 0.08)",
+                    margin: "34px auto 0",
+                    paddingTop: "16px",
+                    borderTop: "1px solid rgba(0, 2, 1, 0.09)",
                     textAlign: "center",
                     fontSize: "12px",
-                    fontWeight: 500,
+                    fontWeight: 600,
+                    letterSpacing: "0.02em",
                     color: greyColor,
                 }}
             >
@@ -825,7 +907,7 @@ export function DashboardScreen({
                     style={{
                         position: "fixed",
                         inset: 0,
-                        backgroundColor: "rgba(0, 2, 1, 0.55)",
+                        backgroundColor: "rgba(0, 2, 1, 0.58)",
                         display: "flex",
                         alignItems: "flex-end",
                         justifyContent: "center",
@@ -836,10 +918,10 @@ export function DashboardScreen({
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: "100%",
-                            maxWidth: "460px",
+                            maxWidth: "520px",
                             backgroundColor: "#FFFFFF",
-                            borderTopLeftRadius: "20px",
-                            borderTopRightRadius: "20px",
+                            borderTopLeftRadius: "22px",
+                            borderTopRightRadius: "22px",
                             padding: "22px 22px 28px",
                             boxSizing: "border-box",
                         }}
@@ -1008,7 +1090,7 @@ export function DashboardScreen({
                     style={{
                         position: "fixed",
                         inset: 0,
-                        backgroundColor: "rgba(0, 2, 1, 0.55)",
+                        backgroundColor: "rgba(0, 2, 1, 0.58)",
                         display: "flex",
                         alignItems: "flex-end",
                         justifyContent: "center",
@@ -1019,10 +1101,10 @@ export function DashboardScreen({
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             width: "100%",
-                            maxWidth: "460px",
+                            maxWidth: "520px",
                             backgroundColor: "#FFFFFF",
-                            borderTopLeftRadius: "20px",
-                            borderTopRightRadius: "20px",
+                            borderTopLeftRadius: "22px",
+                            borderTopRightRadius: "22px",
                             padding: "22px 22px 28px",
                             boxSizing: "border-box",
                         }}
