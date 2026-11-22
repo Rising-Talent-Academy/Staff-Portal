@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { SplashScreen } from "./components/SplashScreen"
 import { LoginScreen } from "./components/LoginScreen"
+import { ResetPasswordScreen } from "./components/ResetPasswordScreen"
 import {
     DashboardScreen,
     StaffProfile as DashboardStaffProfile,
@@ -11,7 +12,7 @@ import {
     type StaffProfile as SupabaseStaffProfile,
 } from "./lib/supabase"
 
-type Screen = "splash" | "login" | "dashboard"
+type Screen = "splash" | "login" | "reset-password" | "dashboard"
 
 function mapToDashboardUser(
     profile: SupabaseStaffProfile
@@ -34,14 +35,27 @@ export default function App() {
     useEffect(() => {
         let active = true
 
+        if (!supabase) return
+
+        const { data: authListener } = supabase.auth.onAuthStateChange(
+            (event) => {
+                if (active && event === "PASSWORD_RECOVERY") {
+                    setScreen("reset-password")
+                }
+            }
+        )
+
         async function restoreSession() {
             try {
+                if (!supabase) return
                 const { data } = await supabase.auth.getSession()
                 if (active && data.session?.user) {
                     const profile = await fetchStaffProfile(data.session.user.id)
                     if (active) {
                         setCurrentUser(mapToDashboardUser(profile))
-                        setScreen("dashboard")
+                        setScreen((prev) =>
+                            prev === "reset-password" ? "reset-password" : "dashboard"
+                        )
                     }
                 }
             } catch {
@@ -53,6 +67,7 @@ export default function App() {
 
         return () => {
             active = false
+            authListener.subscription.unsubscribe()
         }
     }, [])
 
@@ -62,9 +77,18 @@ export default function App() {
     }
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut()
+        await supabase?.auth.signOut()
         setCurrentUser(null)
         setScreen("login")
+    }
+
+    if (screen === "reset-password") {
+        return (
+            <ResetPasswordScreen
+                logoUrl={logoUrl}
+                onDone={() => setScreen("login")}
+            />
+        )
     }
 
     if (screen === "splash") {
