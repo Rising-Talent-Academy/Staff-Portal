@@ -1,62 +1,70 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { SplashScreen } from "./components/SplashScreen"
 import { LoginScreen } from "./components/LoginScreen"
 import {
     DashboardScreen,
-    StaffProfile,
+    StaffProfile as DashboardStaffProfile,
 } from "./components/DashboardScreen"
+import {
+    supabase,
+    fetchStaffProfile,
+    type StaffProfile as SupabaseStaffProfile,
+} from "./lib/supabase"
 
 type Screen = "splash" | "login" | "dashboard"
 
-const STAFF_DIRECTORY: Record<string, StaffProfile> = {
-    "RTA-001": {
-        rtaId: "RTA-001",
-        name: "Founder",
-        role: "Founder",
-        permissionGroup: "leadership",
-    },
-    "RTA-002": {
-        rtaId: "RTA-002",
-        name: "Antony Dyson",
-        role: "Head of Journalism",
-        permissionGroup: "leadership",
-    },
-    "RTA-003": {
-        rtaId: "RTA-003",
-        name: "Editorial Writer",
-        role: "Journalist",
-        permissionGroup: "journalist",
-    },
-    "RTA-004": {
-        rtaId: "RTA-004",
-        name: "Social Creator",
-        role: "Content Creator",
-        permissionGroup: "creator",
-    },
-    "RTA-005": {
-        rtaId: "RTA-005",
-        name: "Media Contributor",
-        role: "Journalist & Content Creator",
-        permissionGroup: "both",
-    },
+function mapToDashboardUser(profile: SupabaseStaffProfile): DashboardStaffProfile {
+    return {
+        rtaId: profile.rta_id,
+        name: profile.full_name,
+        role: profile.role,
+        permissionGroup: profile.permission_group,
+    }
 }
 
 export default function App() {
     const [screen, setScreen] = useState<Screen>("splash")
-    const [currentUser, setCurrentUser] = useState<StaffProfile | null>(null)
+    const [currentUser, setCurrentUser] = useState<DashboardStaffProfile | null>(null)
+    const [sessionChecked, setSessionChecked] = useState(false)
 
     const logoUrl = `${import.meta.env.BASE_URL}rta-logo`
 
-    const handleSignedIn = (rawId: string) => {
-        const normalized = rawId.trim().toUpperCase()
-        const matched = STAFF_DIRECTORY[normalized] || {
-            rtaId: normalized,
-            name: "Team Member",
-            role: "Journalist & Content Creator",
-            permissionGroup: "both",
+    useEffect(() => {
+        let active = true
+
+        async function restoreSession() {
+            try {
+                const { data } = await supabase.auth.getSession()
+                if (active && data.session?.user) {
+                    const profile = await fetchStaffProfile(data.session.user.id)
+                    if (active) {
+                        setCurrentUser(mapToDashboardUser(profile))
+                        setScreen("dashboard")
+                    }
+                }
+            } catch {
+                // If no active session or profile lookup fails, stay on normal flow
+            } finally {
+                if (active) setSessionChecked(true)
+            }
         }
-        setCurrentUser(matched)
+
+        restoreSession()
+
+        return () => {
+            active = false
+        }
+    }, [])
+
+    const handleSignedIn = (profile: SupabaseStaffProfile) => {
+        setCurrentUser(mapToDashboardUser(profile))
         setScreen("dashboard")
+    }
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut()
+        setCurrentUser(null)
+        setScreen("login")
     }
 
     if (screen === "splash") {
@@ -65,7 +73,13 @@ export default function App() {
                 logoUrl={logoUrl}
                 subtitle="Staff Portal"
                 duration={2.6}
-                onComplete={() => setScreen("login")}
+                onComplete={() => {
+                    if (currentUser) {
+                        setScreen("dashboard")
+                    } else {
+                        setScreen("login")
+                    }
+                }}
             />
         )
     }
@@ -75,13 +89,15 @@ export default function App() {
             <DashboardScreen
                 logoUrl={logoUrl}
                 user={currentUser}
-                onSignOut={() => {
-                    setCurrentUser(null)
-                    setScreen("login")
-                }}
+                onSignOut={handleSignOut}
             />
         )
     }
 
-    return <LoginScreen logoUrl={logoUrl} onSignedIn={handleSignedIn} />
+    return (
+        <LoginScreen
+            logoUrl={logoUrl}
+            onSignedIn={handleSignedIn}
+        />
+    )
 }
