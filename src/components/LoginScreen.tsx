@@ -103,14 +103,25 @@ export function LoginScreen({
     }
 
     const handleRecoverySubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!recoveryEmail.trim()) return
+    e.preventDefault()
+    if (!recoveryEmail.trim() || !supabase) return
 
+    const { error: resetError } =
         await supabase.auth.resetPasswordForEmail(
-            recoveryEmail.trim().toLowerCase()
+            recoveryEmail.trim().toLowerCase(),
+            {
+                redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+            }
         )
-        setRecoverySent(true)
+
+    if (resetError) {
+        setError(resetError.message)
+        return
     }
+
+    setRecoverySent(true)
+}
+
 
     return (
         <div
