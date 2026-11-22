@@ -1,0 +1,9 @@
+{
+  "name": "RTA Staff Portal",
+  "short_name": "RTA Portal",
+  "start_url": "/Staff-Portal/",
+  "scope": "/Staff-Portal/",
+  "display": "standalone",
+  "background_color": "#000201",
+  "theme_color": "#000201"
+}
