@@ -1,4 +1,9 @@
 import React, { useState } from "react"
+import {
+    supabase,
+    fetchStaffProfile,
+    type StaffProfile,
+} from "./lib/supabase"
 
 interface LoginScreenProps {
     logoUrl?: string
@@ -7,7 +12,7 @@ interface LoginScreenProps {
     greyColor?: string
     blackColor?: string
     onBackToSplash?: () => void
-    onSignedIn?: (rtaId: string) => void
+    onSignedIn?: (profile: StaffProfile) => void
 }
 
 export function LoginScreen({
@@ -18,27 +23,77 @@ export function LoginScreen({
     blackColor = "#000201",
     onSignedIn,
 }: LoginScreenProps) {
-    const [rtaId, setRtaId] = useState("")
+    const [identifier, setIdentifier] = useState("")
     const [password, setPassword] = useState("")
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState("")
+    const [submitting, setSubmitting] = useState(false)
     const [sheetOpen, setSheetOpen] = useState(false)
     const [recoveryEmail, setRecoveryEmail] = useState("")
     const [recoverySent, setRecoverySent] = useState(false)
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!rtaId.trim() || !password.trim()) {
-            setError("Please enter both your RTA ID and password.")
-            return
+    const resolveEmail = async (rawInput: string): Promise<string> => {
+        const trimmed = rawInput.trim()
+        if (trimmed.includes("@")) {
+            return trimmed.toLowerCase()
         }
-        setError("")
-        onSignedIn?.(rtaId.trim())
+
+        const { data, error: lookupError } = await supabase
+            .from("profiles")
+            .select("email")
+            .ilike("rta_id", trimmed)
+            .maybeSingle()
+
+        if (lookupError || !data?.email) {
+            throw new Error(
+                "Could not find an account for that RTA ID. Try signing in with your email."
+            )
+        }
+
+        return data.email.trim().toLowerCase()
     }
 
-    const handleRecoverySubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!identifier.trim() || !password.trim()) {
+            setError("Please enter both your RTA ID (or email) and password.")
+            return
+        }
+
+        setSubmitting(true)
+        setError("")
+
+        try {
+            const email = await resolveEmail(identifier)
+            const { data, error: authError } =
+                await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                })
+
+            if (authError || !data.user) {
+                setError(authError?.message || "Invalid login credentials.")
+                return
+            }
+
+            const profile = await fetchStaffProfile(data.user.id)
+            onSignedIn?.(profile)
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Unable to sign in."
+            )
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleRecoverySubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!recoveryEmail.trim()) return
+
+        await supabase.auth.resetPasswordForEmail(
+            recoveryEmail.trim().toLowerCase()
+        )
         setRecoverySent(true)
     }
 
@@ -127,14 +182,14 @@ export function LoginScreen({
                                 marginBottom: "6px",
                             }}
                         >
-                            RTA ID
+                            RTA ID or Email
                         </label>
                         <input
                             id="rta-id"
                             type="text"
-                            value={rtaId}
-                            onChange={(e) => setRtaId(e.target.value)}
-                            placeholder="e.g. RTA-104"
+                            value={identifier}
+                            onChange={(e) => setIdentifier(e.target.value)}
+                            placeholder="e.g. A.Dyson8 or name@email.com"
                             style={{
                                 width: "100%",
                                 boxSizing: "border-box",
@@ -220,6 +275,7 @@ export function LoginScreen({
 
                     <button
                         type="submit"
+                        disabled={submitting}
                         style={{
                             marginTop: "4px",
                             width: "100%",
@@ -232,10 +288,11 @@ export function LoginScreen({
                             fontWeight: 600,
                             letterSpacing: "0.04em",
                             textTransform: "uppercase",
-                            cursor: "pointer",
+                            cursor: submitting ? "not-allowed" : "pointer",
+                            opacity: submitting ? 0.7 : 1,
                         }}
                     >
-                        Continue to Portal
+                        {submitting ? "Signing In..." : "Continue to Portal"}
                     </button>
 
                     <div
