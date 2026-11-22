@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 
 export type PermissionGroup =
     | "journalist"
@@ -241,6 +241,27 @@ export function DashboardScreen({
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
     )
+    const [bannerDismissed, setBannerDismissed] = useState(false)
+    const [installSheetOpen, setInstallSheetOpen] = useState(false)
+    const [isStandalone, setIsStandalone] = useState(false)
+    const [platformHint, setPlatformHint] = useState<"ios" | "android" | "other">(
+        "other"
+    )
+
+    useEffect(() => {
+        const standalone =
+            window.matchMedia?.("(display-mode: standalone)").matches ||
+            (window.navigator as Navigator & { standalone?: boolean })
+                .standalone === true
+        setIsStandalone(Boolean(standalone))
+
+        const ua = window.navigator.userAgent.toLowerCase()
+        if (/iphone|ipad|ipod/.test(ua)) {
+            setPlatformHint("ios")
+        } else if (/android/.test(ua)) {
+            setPlatformHint("android")
+        }
+    }, [])
 
     const sections = getGroupedSections(user.permissionGroup)
 
@@ -249,6 +270,13 @@ export function DashboardScreen({
         if (accent === "blue") return blueColor
         return blackColor
     }
+
+    const shortInstallTip =
+        platformHint === "ios"
+            ? "On iPhone: tap Share, then Add to Home Screen."
+            : platformHint === "android"
+              ? "On Android: tap the browser menu (⋮), then Add to Home screen."
+              : "Save this portal to your iPhone or Android Home Screen for app-style access."
 
     return (
         <div
@@ -259,7 +287,7 @@ export function DashboardScreen({
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "20px 20px 24px",
+                padding: "16px 20px 24px",
                 boxSizing: "border-box",
                 fontFamily:
                     "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -272,6 +300,88 @@ export function DashboardScreen({
                     margin: "0 auto",
                 }}
             >
+                {/* Top Web App Install Banner */}
+                {!isStandalone && !bannerDismissed && (
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            padding: "10px 12px",
+                            marginBottom: "14px",
+                            borderRadius: "10px",
+                            backgroundColor: "rgba(3, 78, 175, 0.07)",
+                            border: "1px solid rgba(3, 78, 175, 0.22)",
+                        }}
+                    >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                                style={{
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    color: blueColor,
+                                    marginBottom: "2px",
+                                }}
+                            >
+                                Install RTA Staff Portal App
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: "11px",
+                                    color: blackColor,
+                                    lineHeight: 1.35,
+                                }}
+                            >
+                                {shortInstallTip}
+                            </div>
+                        </div>
+
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                flexShrink: 0,
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setInstallSheetOpen(true)}
+                                style={{
+                                    padding: "6px 10px",
+                                    borderRadius: "7px",
+                                    border: "none",
+                                    backgroundColor: blueColor,
+                                    color: "#FFFFFF",
+                                    fontSize: "11px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Steps
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="Dismiss install banner"
+                                onClick={() => setBannerDismissed(true)}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: greyColor,
+                                    fontSize: "16px",
+                                    fontWeight: 600,
+                                    lineHeight: 1,
+                                    padding: "4px",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <header
                     style={{
@@ -608,6 +718,172 @@ export function DashboardScreen({
             >
                 risingtalentacademy.co.uk
             </footer>
+
+            {/* Install Instructions Sheet (iPhone & Android) */}
+            {installSheetOpen && (
+                <div
+                    onClick={() => setInstallSheetOpen(false)}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        backgroundColor: "rgba(0, 2, 1, 0.45)",
+                        display: "flex",
+                        alignItems: "flex-end",
+                        justifyContent: "center",
+                        zIndex: 25,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: "100%",
+                            maxWidth: "460px",
+                            backgroundColor: "#FFFFFF",
+                            borderTopLeftRadius: "18px",
+                            borderTopRightRadius: "18px",
+                            padding: "22px 22px 28px",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "12px",
+                            }}
+                        >
+                            <h2
+                                style={{
+                                    margin: 0,
+                                    fontSize: "18px",
+                                    fontWeight: 700,
+                                    color: blackColor,
+                                }}
+                            >
+                                Add to Home Screen
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => setInstallSheetOpen(false)}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    fontSize: "13px",
+                                    fontWeight: 600,
+                                    color: greyColor,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div
+                            style={{
+                                padding: "12px 14px",
+                                borderRadius: "12px",
+                                border: "1px solid rgba(0, 2, 1, 0.12)",
+                                marginBottom: "12px",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    fontSize: "13px",
+                                    fontWeight: 700,
+                                    color: redColor,
+                                    marginBottom: "6px",
+                                }}
+                            >
+                                iPhone (Safari)
+                            </div>
+                            <ol
+                                style={{
+                                    margin: 0,
+                                    paddingLeft: "18px",
+                                    fontSize: "13px",
+                                    lineHeight: 1.5,
+                                    color: blackColor,
+                                }}
+                            >
+                                <li>
+                                    Open this portal in <strong>Safari</strong>.
+                                </li>
+                                <li>
+                                    Tap the <strong>Share</strong> icon at the
+                                    bottom of the screen.
+                                </li>
+                                <li>
+                                    Scroll down and tap{" "}
+                                    <strong>Add to Home Screen</strong>, then
+                                    tap <strong>Add</strong>.
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div
+                            style={{
+                                padding: "12px 14px",
+                                borderRadius: "12px",
+                                border: "1px solid rgba(0, 2, 1, 0.12)",
+                                marginBottom: "18px",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    fontSize: "13px",
+                                    fontWeight: 700,
+                                    color: blueColor,
+                                    marginBottom: "6px",
+                                }}
+                            >
+                                Android (Chrome)
+                            </div>
+                            <ol
+                                style={{
+                                    margin: 0,
+                                    paddingLeft: "18px",
+                                    fontSize: "13px",
+                                    lineHeight: 1.5,
+                                    color: blackColor,
+                                }}
+                            >
+                                <li>
+                                    Open this portal in <strong>Chrome</strong>.
+                                </li>
+                                <li>
+                                    Tap the <strong>three-dot menu (⋮)</strong>{" "}
+                                    in the top-right corner.
+                                </li>
+                                <li>
+                                    Tap <strong>Add to Home screen</strong> (or{" "}
+                                    <strong>Install app</strong>) and confirm.
+                                </li>
+                            </ol>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setInstallSheetOpen(false)}
+                            style={{
+                                width: "100%",
+                                padding: "13px 16px",
+                                borderRadius: "10px",
+                                border: "none",
+                                backgroundColor: blackColor,
+                                color: "#FFFFFF",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Got It
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Action Detail Sheet */}
             {selectedAction && (
