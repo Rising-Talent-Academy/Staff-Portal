@@ -2,7 +2,12 @@ import React, { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { StaffProfile } from "./DashboardScreen"
 
-export type ArticleStatus = "draft" | "pending_review" | "approved"
+export type ArticleStatus =
+    | "draft"
+    | "pending_review"
+    | "approved"
+    | "scheduled"
+    | "rejected"
 
 export interface ArticleRecord {
     id: string
@@ -17,6 +22,8 @@ export interface ArticleRecord {
     article_body: string
     credits: string
     status: ArticleStatus
+    rejection_reason?: string
+    scheduled_for?: string | null
 }
 
 interface ArticlesViewProps {
@@ -33,6 +40,8 @@ const STATUS_LABELS: Record<ArticleStatus, string> = {
     draft: "Draft",
     pending_review: "Pending Review",
     approved: "Approved",
+    scheduled: "Scheduled",
+    rejected: "Rejected",
 }
 
 export function ArticlesView({
@@ -51,6 +60,16 @@ export function ArticlesView({
         "journalism" | "content"
     >("journalism")
 
+    // Review & workflow action states (admin)
+    const [reviewingArticle, setReviewingArticle] =
+        useState<ArticleRecord | null>(null)
+    const [rejectingId, setRejectingId] = useState<string | null>(null)
+    const [rejectReason, setRejectReason] = useState("")
+    const [schedulingId, setSchedulingId] = useState<string | null>(null)
+    const [scheduleDateTime, setScheduleDateTime] = useState("")
+    const [actionBusyId, setActionBusyId] = useState<string | null>(null)
+
+    // Submission / edit form state
     const [editingId, setEditingId] = useState<string | null>(null)
     const [title, setTitle] = useState("")
     const [description, setDescription] = useState("")
@@ -153,7 +172,12 @@ export function ArticlesView({
     ): ArticleStatus => {
         if (intent === "approve") return "approved"
         if (intent === "submit") return "pending_review"
-        if (currentStatus === "approved" && isLeadership) return "approved"
+        if (
+            (currentStatus === "approved" || currentStatus === "scheduled") &&
+            isLeadership
+        ) {
+            return currentStatus
+        }
         return "draft"
     }
 
@@ -196,6 +220,10 @@ export function ArticlesView({
                         article_body: articleBody.trim(),
                         credits: credits.trim(),
                         status: nextStatus,
+                        rejection_reason:
+                            nextStatus === "pending_review"
+                                ? ""
+                                : existingItem?.rejection_reason ?? "",
                     })
                     .eq("id", editingId)
 
@@ -255,28 +283,115 @@ export function ArticlesView({
 
     const handleApproveArticle = async (id: string) => {
         if (!supabase) return
+        setActionBusyId(id)
+        setErrorMsg("")
         const { error } = await supabase
             .from("articles")
-            .update({ status: "approved" })
+            .update({ status: "approved", rejection_reason: "" })
             .eq("id", id)
 
+        setActionBusyId(null)
         if (!error) {
             setSuccessMsg("Approved — status updated to Approved.")
             await loadArticles()
+        } else {
+            setErrorMsg(error.message || "Could not approve article.")
+        }
+    }
+
+    const openRejectBox = (item: ArticleRecord) => {
+        setSchedulingId(null)
+        setRejectingId(item.id)
+        setRejectReason(item.rejection_reason || "")
+        setErrorMsg("")
+    }
+
+    const handleConfirmReject = async (id: string) => {
+        if (!supabase) return
+        if (!rejectReason.trim()) {
+            setErrorMsg("Please enter a reason why this article is rejected.")
+            return
+        }
+
+        setActionBusyId(id)
+        setErrorMsg("")
+        const { error } = await supabase
+            .from("articles")
+            .update({
+                status: "rejected",
+                rejection_reason: rejectReason.trim(),
+            })
+            .eq("id", id)
+
+        setActionBusyId(null)
+        if (!error) {
+            setRejectingId(null)
+            setRejectReason("")
+            setSuccessMsg("Rejected — reason saved for the writer.")
+            await loadArticles()
+        } else {
+            setErrorMsg(error.message || "Could not reject article.")
+        }
+    }
+
+    const openScheduleBox = (item: ArticleRecord) => {
+        setRejectingId(null)
+        setSchedulingId(item.id)
+        if (item.scheduled_for) {
+            const localIso = new Date(item.scheduled_for)
+                .toISOString()
+                .slice(0, 16)
+            setScheduleDateTime(localIso)
+        } else {
+            setScheduleDateTime("")
+        }
+        setErrorMsg("")
+    }
+
+    const handleConfirmSchedule = async (id: string) => {
+        if (!supabase) return
+        if (!scheduleDateTime) {
+            setErrorMsg("Please pick a date and time to schedule.")
+            return
+        }
+
+        setActionBusyId(id)
+        setErrorMsg("")
+        const isoDate = new Date(scheduleDateTime).toISOString()
+
+        const { error } = await supabase
+            .from("articles")
+            .update({
+                status: "scheduled",
+                scheduled_for: isoDate,
+                rejection_reason: "",
+            })
+            .eq("id", id)
+
+        setActionBusyId(null)
+        if (!error) {
+            setSchedulingId(null)
+            setScheduleDateTime("")
+            setSuccessMsg(
+                "Scheduled — ready for Squarespace publish sync."
+            )
+            await loadArticles()
+        } else {
+            setErrorMsg(error.message || "Could not schedule article.")
         }
     }
 
     const getStatusBadgeStyle = (
         status: ArticleStatus
     ): React.CSSProperties => {
-        if (status === "approved") {
+        if (status === "approved" || status === "scheduled") {
             return {
                 backgroundColor: "rgba(3, 78, 175, 0.12)",
                 color: blueColor,
                 border: "1px solid rgba(3, 78, 175, 0.28)",
             }
         }
-        if (status === "pending_review") {
+        if (status === "pending_review" || status === "rejected") {
             return {
                 backgroundColor: "rgba(250, 52, 37, 0.12)",
                 color: redColor,
@@ -669,6 +784,7 @@ export function ArticlesView({
                 gap: "22px",
             }}
         >
+            {/* Top Header */}
             <div
                 style={{
                     display: "flex",
@@ -722,9 +838,11 @@ export function ArticlesView({
                 </button>
             </div>
 
+            {/* MODE 1: SUBMIT ARTICLE ONLY */}
             {initialMode === "submit" &&
                 renderFormCard("Submit New Article", false)}
 
+            {/* MODE 2: ARTICLE QUEUE */}
             {initialMode === "queue" && (
                 <div
                     style={{
@@ -836,6 +954,44 @@ export function ArticlesView({
                                     </p>
                                 )}
 
+                                {item.status === "rejected" &&
+                                    item.rejection_reason && (
+                                        <div
+                                            style={{
+                                                padding: "10px 12px",
+                                                borderRadius: "10px",
+                                                backgroundColor:
+                                                    "rgba(250, 52, 37, 0.08)",
+                                                border:
+                                                    "1px solid rgba(250, 52, 37, 0.25)",
+                                                fontSize: "13px",
+                                                color: blackColor,
+                                            }}
+                                        >
+                                            <strong style={{ color: redColor }}>
+                                                Reason for rejection:{" "}
+                                            </strong>
+                                            {item.rejection_reason}
+                                        </div>
+                                    )}
+
+                                {item.status === "scheduled" &&
+                                    item.scheduled_for && (
+                                        <p
+                                            style={{
+                                                margin: 0,
+                                                fontSize: "12px",
+                                                fontWeight: 600,
+                                                color: blueColor,
+                                            }}
+                                        >
+                                            Scheduled for:{" "}
+                                            {new Date(
+                                                item.scheduled_for
+                                            ).toLocaleString()}
+                                        </p>
+                                    )}
+
                                 {item.photo_url && (
                                     <img
                                         src={item.photo_url}
@@ -901,6 +1057,7 @@ export function ArticlesView({
                 </div>
             )}
 
+            {/* MODE 3: EDITORIAL & CONTENT APPROVALS */}
             {initialMode === "approvals" && (
                 <div
                     style={{
@@ -969,6 +1126,19 @@ export function ArticlesView({
                         </button>
                     </div>
 
+                    {errorMsg && (
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                color: redColor,
+                            }}
+                        >
+                            {errorMsg}
+                        </p>
+                    )}
+
                     {successMsg && (
                         <p
                             style={{
@@ -1014,170 +1184,515 @@ export function ArticlesView({
                                     No journalism submissions yet.
                                 </div>
                             ) : (
-                                articles.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        style={{
-                                            border:
-                                                "1px solid rgba(0, 2, 1, 0.12)",
-                                            borderRadius: "14px",
-                                            padding: "18px",
-                                            backgroundColor: "#FFFFFF",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "10px",
-                                        }}
-                                    >
+                                articles.map((item) => {
+                                    const isRejectOpen = rejectingId === item.id
+                                    const isScheduleOpen =
+                                        schedulingId === item.id
+                                    const isBusy = actionBusyId === item.id
+
+                                    return (
                                         <div
+                                            key={item.id}
                                             style={{
+                                                border:
+                                                    "1px solid rgba(0, 2, 1, 0.12)",
+                                                borderRadius: "14px",
+                                                padding: "18px",
+                                                backgroundColor: "#FFFFFF",
                                                 display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
+                                                flexDirection: "column",
                                                 gap: "10px",
-                                                flexWrap: "wrap",
                                             }}
                                         >
-                                            <span
+                                            <div
                                                 style={{
-                                                    padding: "4px 10px",
-                                                    borderRadius: "999px",
-                                                    fontSize: "11px",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    gap: "10px",
+                                                    flexWrap: "wrap",
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        padding: "4px 10px",
+                                                        borderRadius: "999px",
+                                                        fontSize: "11px",
+                                                        fontWeight: 700,
+                                                        ...getStatusBadgeStyle(
+                                                            item.status
+                                                        ),
+                                                    }}
+                                                >
+                                                    {STATUS_LABELS[item.status]}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: "12px",
+                                                        color: greyColor,
+                                                    }}
+                                                >
+                                                    {item.author_name} (
+                                                    {item.author_rta_id})
+                                                </span>
+                                            </div>
+
+                                            <h4
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "17px",
                                                     fontWeight: 700,
-                                                    ...getStatusBadgeStyle(
-                                                        item.status
-                                                    ),
-                                                }}
-                                            >
-                                                {STATUS_LABELS[item.status]}
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: "12px",
-                                                    color: greyColor,
-                                                }}
-                                            >
-                                                {item.author_name} (
-                                                {item.author_rta_id})
-                                            </span>
-                                        </div>
-
-                                        <h4
-                                            style={{
-                                                margin: 0,
-                                                fontSize: "17px",
-                                                fontWeight: 700,
-                                                color: blackColor,
-                                            }}
-                                        >
-                                            {item.title}
-                                        </h4>
-
-                                        {item.description && (
-                                            <p
-                                                style={{
-                                                    margin: 0,
-                                                    fontSize: "13px",
-                                                    color: greyColor,
-                                                    lineHeight: 1.45,
-                                                }}
-                                            >
-                                                {item.description}
-                                            </p>
-                                        )}
-
-                                        {item.photo_url && (
-                                            <img
-                                                src={item.photo_url}
-                                                alt={item.title}
-                                                style={{
-                                                    maxWidth: "100%",
-                                                    maxHeight: "220px",
-                                                    borderRadius: "10px",
-                                                    objectFit: "cover",
-                                                }}
-                                            />
-                                        )}
-
-                                        {item.article_body && (
-                                            <p
-                                                style={{
-                                                    margin: 0,
-                                                    fontSize: "14px",
                                                     color: blackColor,
-                                                    lineHeight: 1.6,
-                                                    whiteSpace: "pre-line",
                                                 }}
                                             >
-                                                {item.article_body}
-                                            </p>
-                                        )}
+                                                {item.title}
+                                            </h4>
 
-                                        {item.credits && (
-                                            <p
+                                            {item.description && (
+                                                <p
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "13px",
+                                                        color: greyColor,
+                                                        lineHeight: 1.45,
+                                                    }}
+                                                >
+                                                    {item.description}
+                                                </p>
+                                            )}
+
+                                            {item.scheduled_for && (
+                                                <p
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                        color: blueColor,
+                                                    }}
+                                                >
+                                                    Scheduled:{" "}
+                                                    {new Date(
+                                                        item.scheduled_for
+                                                    ).toLocaleString()}
+                                                </p>
+                                            )}
+
+                                            {item.rejection_reason && (
+                                                <p
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                        color: redColor,
+                                                    }}
+                                                >
+                                                    Rejection reason:{" "}
+                                                    {item.rejection_reason}
+                                                </p>
+                                            )}
+
+                                            {item.credits && (
+                                                <p
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                        color: greyColor,
+                                                    }}
+                                                >
+                                                    Credits: {item.credits}
+                                                </p>
+                                            )}
+
+                                            {/* Admin Action Buttons */}
+                                            <div
                                                 style={{
-                                                    margin: 0,
-                                                    fontSize: "12px",
-                                                    fontWeight: 600,
-                                                    color: greyColor,
+                                                    display: "flex",
+                                                    gap: "8px",
+                                                    flexWrap: "wrap",
+                                                    paddingTop: "4px",
                                                 }}
                                             >
-                                                Credits: {item.credits}
-                                            </p>
-                                        )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setReviewingArticle(item)
+                                                    }
+                                                    style={{
+                                                        padding: "8px 13px",
+                                                        borderRadius: "8px",
+                                                        border:
+                                                            "1px solid rgba(0, 2, 1, 0.16)",
+                                                        backgroundColor:
+                                                            "#F9FAFC",
+                                                        color: blackColor,
+                                                        fontSize: "12px",
+                                                        fontWeight: 700,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Review
+                                                </button>
 
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                gap: "8px",
-                                                flexWrap: "wrap",
-                                                paddingTop: "4px",
-                                            }}
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() => startEditing(item)}
-                                                style={{
-                                                    padding: "8px 13px",
-                                                    borderRadius: "8px",
-                                                    border:
-                                                        "1px solid rgba(0, 2, 1, 0.16)",
-                                                    backgroundColor: "#FFFFFF",
-                                                    color: blackColor,
-                                                    fontSize: "12px",
-                                                    fontWeight: 600,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                Edit
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        startEditing(item)
+                                                    }
+                                                    style={{
+                                                        padding: "8px 13px",
+                                                        borderRadius: "8px",
+                                                        border:
+                                                            "1px solid rgba(0, 2, 1, 0.16)",
+                                                        backgroundColor:
+                                                            "#FFFFFF",
+                                                        color: blackColor,
+                                                        fontSize: "12px",
+                                                        fontWeight: 700,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Edit
+                                                </button>
 
-                                            {isLeadership &&
-                                                item.status !== "approved" && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleApproveArticle(
-                                                                item.id
+                                                {isLeadership && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() =>
+                                                                openScheduleBox(
+                                                                    item
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "8px 13px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "1px solid rgba(3, 78, 175, 0.3)",
+                                                                backgroundColor:
+                                                                    "rgba(3, 78, 175, 0.08)",
+                                                                color:
+                                                                    blueColor,
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Schedule
+                                                        </button>
+
+                                                        {item.status !==
+                                                            "approved" && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={
+                                                                    isBusy
+                                                                }
+                                                                onClick={() =>
+                                                                    handleApproveArticle(
+                                                                        item.id
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    padding:
+                                                                        "8px 13px",
+                                                                    borderRadius:
+                                                                        "8px",
+                                                                    border:
+                                                                        "none",
+                                                                    backgroundColor:
+                                                                        blueColor,
+                                                                    color:
+                                                                        "#FFFFFF",
+                                                                    fontSize:
+                                                                        "12px",
+                                                                    fontWeight: 700,
+                                                                    cursor:
+                                                                        "pointer",
+                                                                }}
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() =>
+                                                                openRejectBox(
+                                                                    item
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "8px 13px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "none",
+                                                                backgroundColor:
+                                                                    redColor,
+                                                                color:
+                                                                    "#FFFFFF",
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Reject Reason Box */}
+                                            {isRejectOpen && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "6px",
+                                                        padding: "14px",
+                                                        borderRadius: "12px",
+                                                        backgroundColor:
+                                                            "rgba(250, 52, 37, 0.05)",
+                                                        border:
+                                                            "1px solid rgba(250, 52, 37, 0.28)",
+                                                        display: "flex",
+                                                        flexDirection:
+                                                            "column",
+                                                        gap: "10px",
+                                                    }}
+                                                >
+                                                    <label
+                                                        htmlFor={`reject-reason-${item.id}`}
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            fontWeight: 700,
+                                                            color: redColor,
+                                                        }}
+                                                    >
+                                                        Reason why this is
+                                                        rejected
+                                                    </label>
+                                                    <textarea
+                                                        id={`reject-reason-${item.id}`}
+                                                        rows={3}
+                                                        value={rejectReason}
+                                                        onChange={(e) =>
+                                                            setRejectReason(
+                                                                e.target.value
+                                                            )
+                                                        }
+                                                        placeholder="Write what needs fixing or why it wasn't approved..."
+                                                        style={{
+                                                            width: "100%",
+                                                            boxSizing:
+                                                                "border-box",
+                                                            padding:
+                                                                "10px 12px",
+                                                            borderRadius:
+                                                                "8px",
+                                                            border:
+                                                                "1px solid rgba(0, 2, 1, 0.16)",
+                                                            fontSize: "13px",
+                                                            fontFamily:
+                                                                "inherit",
+                                                            backgroundColor:
+                                                                "#FFFFFF",
+                                                        }}
+                                                    />
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: "8px",
+                                                        }}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() =>
+                                                                handleConfirmReject(
+                                                                    item.id
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "8px 14px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "none",
+                                                                backgroundColor:
+                                                                    redColor,
+                                                                color:
+                                                                    "#FFFFFF",
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Confirm Reject
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setRejectingId(
+                                                                    null
+                                                                )
+                                                                setRejectReason(
+                                                                    ""
+                                                                )
+                                                            }}
+                                                            style={{
+                                                                padding:
+                                                                    "8px 12px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "1px solid rgba(0, 2, 1, 0.15)",
+                                                                backgroundColor:
+                                                                    "#FFFFFF",
+                                                                color:
+                                                                    blackColor,
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 600,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Schedule Date/Time Box (Squarespace sync hook) */}
+                                            {isScheduleOpen && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "6px",
+                                                        padding: "14px",
+                                                        borderRadius: "12px",
+                                                        backgroundColor:
+                                                            "rgba(3, 78, 175, 0.05)",
+                                                        border:
+                                                            "1px solid rgba(3, 78, 175, 0.25)",
+                                                        display: "flex",
+                                                        flexDirection:
+                                                            "column",
+                                                        gap: "10px",
+                                                    }}
+                                                >
+                                                    <label
+                                                        htmlFor={`schedule-dt-${item.id}`}
+                                                        style={{
+                                                            fontSize: "12px",
+                                                            fontWeight: 700,
+                                                            color: blueColor,
+                                                        }}
+                                                    >
+                                                        Schedule publish date &
+                                                        time (Squarespace queue)
+                                                    </label>
+                                                    <input
+                                                        id={`schedule-dt-${item.id}`}
+                                                        type="datetime-local"
+                                                        value={scheduleDateTime}
+                                                        onChange={(e) =>
+                                                            setScheduleDateTime(
+                                                                e.target.value
                                                             )
                                                         }
                                                         style={{
-                                                            padding: "8px 13px",
-                                                            borderRadius: "8px",
-                                                            border: "none",
+                                                            padding:
+                                                                "9px 12px",
+                                                            borderRadius:
+                                                                "8px",
+                                                            border:
+                                                                "1px solid rgba(0, 2, 1, 0.16)",
+                                                            fontSize: "13px",
                                                             backgroundColor:
-                                                                blueColor,
-                                                            color: "#FFFFFF",
-                                                            fontSize: "12px",
-                                                            fontWeight: 600,
-                                                            cursor: "pointer",
+                                                                "#FFFFFF",
+                                                            maxWidth: "260px",
+                                                        }}
+                                                    />
+                                                    <div
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: "8px",
                                                         }}
                                                     >
-                                                        Approve
-                                                    </button>
-                                                )}
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() =>
+                                                                handleConfirmSchedule(
+                                                                    item.id
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "8px 14px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "none",
+                                                                backgroundColor:
+                                                                    blueColor,
+                                                                color:
+                                                                    "#FFFFFF",
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 700,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Save Schedule
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setSchedulingId(
+                                                                    null
+                                                                )
+                                                            }
+                                                            style={{
+                                                                padding:
+                                                                    "8px 12px",
+                                                                borderRadius:
+                                                                    "8px",
+                                                                border:
+                                                                    "1px solid rgba(0, 2, 1, 0.15)",
+                                                                backgroundColor:
+                                                                    "#FFFFFF",
+                                                                color:
+                                                                    blackColor,
+                                                                fontSize:
+                                                                    "12px",
+                                                                fontWeight: 600,
+                                                                cursor:
+                                                                    "pointer",
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                ))
+                                    )
+                                })
                             )}
                         </div>
                     ) : (
@@ -1215,7 +1730,149 @@ export function ArticlesView({
                     )}
                 </div>
             )}
+
+            {/* Full Article Review Modal */}
+            {reviewingArticle && (
+                <div
+                    onClick={() => setReviewingArticle(null)}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        backgroundColor: "rgba(0, 2, 1, 0.58)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "16px",
+                        zIndex: 40,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: "100%",
+                            maxWidth: "620px",
+                            maxHeight: "85dvh",
+                            overflowY: "auto",
+                            backgroundColor: "#FFFFFF",
+                            borderRadius: "18px",
+                            padding: "22px",
+                            boxSizing: "border-box",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: "10px",
+                            }}
+                        >
+                            <span
+                                style={{
+                                    padding: "4px 10px",
+                                    borderRadius: "999px",
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    ...getStatusBadgeStyle(
+                                        reviewingArticle.status
+                                    ),
+                                }}
+                            >
+                                {STATUS_LABELS[reviewingArticle.status]}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setReviewingArticle(null)}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    fontSize: "13px",
+                                    fontWeight: 700,
+                                    color: greyColor,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <h3
+                            style={{
+                                margin: 0,
+                                fontSize: "20px",
+                                fontWeight: 800,
+                                color: blackColor,
+                            }}
+                        >
+                            {reviewingArticle.title}
+                        </h3>
+
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: "12px",
+                                color: greyColor,
+                            }}
+                        >
+                            By {reviewingArticle.author_name} (
+                            {reviewingArticle.author_rta_id})
+                        </p>
+
+                        {reviewingArticle.description && (
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    color: blackColor,
+                                }}
+                            >
+                                {reviewingArticle.description}
+                            </p>
+                        )}
+
+                        {reviewingArticle.photo_url && (
+                            <img
+                                src={reviewingArticle.photo_url}
+                                alt={reviewingArticle.title}
+                                style={{
+                                    maxWidth: "100%",
+                                    maxHeight: "260px",
+                                    borderRadius: "12px",
+                                    objectFit: "cover",
+                                }}
+                            />
+                        )}
+
+                        <div
+                            style={{
+                                fontSize: "14px",
+                                lineHeight: 1.65,
+                                color: blackColor,
+                                whiteSpace: "pre-line",
+                            }}
+                        >
+                            {reviewingArticle.article_body}
+                        </div>
+
+                        {reviewingArticle.credits && (
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    color: greyColor,
+                                }}
+                            >
+                                Credits: {reviewingArticle.credits}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
-
