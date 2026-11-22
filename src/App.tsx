@@ -13,7 +13,9 @@ import {
 
 type Screen = "splash" | "login" | "dashboard"
 
-function mapToDashboardUser(profile: SupabaseStaffProfile): DashboardStaffProfile {
+function mapToDashboardUser(
+    profile: SupabaseStaffProfile
+): DashboardStaffProfile {
     return {
         rtaId: profile.rta_id,
         name: profile.full_name,
@@ -24,8 +26,8 @@ function mapToDashboardUser(profile: SupabaseStaffProfile): DashboardStaffProfil
 
 export default function App() {
     const [screen, setScreen] = useState<Screen>("splash")
-    const [currentUser, setCurrentUser] = useState<DashboardStaffProfile | null>(null)
-    const [sessionChecked, setSessionChecked] = useState(false)
+    const [currentUser, setCurrentUser] =
+        useState<DashboardStaffProfile | null>(null)
 
     const logoUrl = `${import.meta.env.BASE_URL}rta-logo`
 
@@ -43,9 +45,7 @@ export default function App() {
                     }
                 }
             } catch {
-                // If no active session or profile lookup fails, stay on normal flow
-            } finally {
-                if (active) setSessionChecked(true)
+                // Stay on normal flow if there is no active session
             }
         }
 
@@ -94,10 +94,5 @@ export default function App() {
         )
     }
 
-    return (
-        <LoginScreen
-            logoUrl={logoUrl}
-            onSignedIn={handleSignedIn}
-        />
-    )
+    return <LoginScreen logoUrl={logoUrl} onSignedIn={handleSignedIn} />
 }
