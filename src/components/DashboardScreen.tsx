@@ -89,7 +89,7 @@ const ALL_ACTIONS: ActionItem[] = [
             "Review your assigned RTA ID details, signed volunteer agreements, and core compliance policies.",
     },
 
-    /    // Journalism
+    // Journalism
     {
         id: "pitch-queue",
         title: "Article Queue",
@@ -258,7 +258,9 @@ function getGroupedSections(group: PermissionGroup): ActionSection[] {
     }))
 }
 
-function getDefaultOpenSections(group: PermissionGroup): Record<ActionCategory, boolean> {
+function getDefaultOpenSections(
+    group: PermissionGroup
+): Record<ActionCategory, boolean> {
     return {
         core: true,
         journalist: group === "journalist" || group === "both",
