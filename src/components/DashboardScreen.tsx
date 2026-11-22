@@ -29,6 +29,7 @@ interface ActionItem {
 interface ActionSection {
     category: ActionCategory
     label: string
+    description: string
     items: ActionItem[]
 }
 
@@ -203,11 +204,31 @@ const GROUP_LABELS: Record<PermissionGroup, string> = {
     leadership: "Leadership & Admin Access",
 }
 
-const SECTION_CONFIG: { category: ActionCategory; label: string }[] = [
-    { category: "core", label: "General" },
-    { category: "journalist", label: "Journalism" },
-    { category: "creator", label: "Content Creation" },
-    { category: "leadership", label: "Leadership & Admin" },
+const SECTION_CONFIG: {
+    category: ActionCategory
+    label: string
+    description: string
+}[] = [
+    {
+        category: "core",
+        label: "General",
+        description: "Briefings, brand kit, roster & profile",
+    },
+    {
+        category: "journalist",
+        label: "Journalism",
+        description: "Pitches, copy submission & press notes",
+    },
+    {
+        category: "creator",
+        label: "Content Creation",
+        description: "Calendar, asset uploads & hooks",
+    },
+    {
+        category: "leadership",
+        label: "Leadership & Admin",
+        description: "Approvals, RTA IDs, HR/legal & systems",
+    },
 ]
 
 function isCategoryAllowed(
@@ -228,10 +249,20 @@ function getGroupedSections(group: PermissionGroup): ActionSection[] {
     ).map((section) => ({
         category: section.category,
         label: section.label,
+        description: section.description,
         items: ALL_ACTIONS.filter(
             (action) => action.category === section.category
         ),
     }))
+}
+
+function getDefaultOpenSections(group: PermissionGroup): Record<ActionCategory, boolean> {
+    return {
+        core: true,
+        journalist: group === "journalist" || group === "both",
+        creator: group === "creator",
+        leadership: group === "leadership",
+    }
 }
 
 export function DashboardScreen({
@@ -253,6 +284,13 @@ export function DashboardScreen({
     const [platformHint, setPlatformHint] = useState<
         "ios" | "android" | "other"
     >("other")
+    const [openSections, setOpenSections] = useState<
+        Record<ActionCategory, boolean>
+    >(() => getDefaultOpenSections(user.permissionGroup))
+
+    useEffect(() => {
+        setOpenSections(getDefaultOpenSections(user.permissionGroup))
+    }, [user.permissionGroup])
 
     useEffect(() => {
         const standalone =
@@ -270,6 +308,25 @@ export function DashboardScreen({
     }, [])
 
     const sections = getGroupedSections(user.permissionGroup)
+
+    const toggleSection = (category: ActionCategory) => {
+        setOpenSections((prev) => ({
+            ...prev,
+            [category]: !prev[category],
+        }))
+    }
+
+    const allExpanded = sections.every((s) => openSections[s.category])
+
+    const toggleAllSections = () => {
+        const nextState = !allExpanded
+        setOpenSections({
+            core: nextState,
+            journalist: nextState,
+            creator: nextState,
+            leadership: nextState,
+        })
+    }
 
     const getAccentColor = (accent: ActionItem["accent"]) => {
         if (accent === "red") return redColor
@@ -499,7 +556,7 @@ export function DashboardScreen({
                             "linear-gradient(135deg, #000201 0%, #0E131F 65%, #071936 100%)",
                         color: "#FFFFFF",
                         overflow: "hidden",
-                        marginBottom: "26px",
+                        marginBottom: "22px",
                         boxShadow: "0 16px 34px rgba(0, 2, 1, 0.18)",
                     }}
                 >
@@ -646,236 +703,395 @@ export function DashboardScreen({
                     </div>
                 </section>
 
-                {/* Grouped Action Sections */}
+                {/* Sections Toolbar */}
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: "12px",
+                        padding: "0 2px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: 800,
+                            letterSpacing: "0.14em",
+                            textTransform: "uppercase",
+                            color: greyColor,
+                        }}
+                    >
+                        Workspaces
+                    </span>
+
+                    <button
+                        type="button"
+                        onClick={toggleAllSections}
+                        style={{
+                            border: "none",
+                            background: "transparent",
+                            padding: "2px 4px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: blueColor,
+                            cursor: "pointer",
+                        }}
+                    >
+                        {allExpanded ? "Collapse All" : "Expand All"}
+                    </button>
+                </div>
+
+                {/* Collapsible Section Cards */}
                 <div
                     style={{
                         display: "flex",
                         flexDirection: "column",
-                        gap: "26px",
+                        gap: "14px",
                     }}
                 >
                     {sections.map((section) => {
                         const isLeadershipSection =
                             section.category === "leadership"
+                        const isOpen = Boolean(openSections[section.category])
                         const hasOddCount = section.items.length % 2 === 1
 
                         return (
-                            <section key={section.category}>
-                                <div
+                            <section
+                                key={section.category}
+                                style={{
+                                    borderRadius: "18px",
+                                    backgroundColor: "#FFFFFF",
+                                    border: isLeadershipSection
+                                        ? "1px solid rgba(250, 52, 37, 0.25)"
+                                        : "1px solid rgba(0, 2, 1, 0.08)",
+                                    boxShadow: "0 8px 22px rgba(0, 2, 1, 0.04)",
+                                    overflow: "hidden",
+                                }}
+                            >
+                                {/* Collapsible Header Button */}
+                                <button
+                                    type="button"
+                                    aria-expanded={isOpen}
+                                    onClick={() => toggleSection(section.category)}
                                     style={{
+                                        width: "100%",
+                                        padding: "16px 18px",
+                                        border: "none",
+                                        backgroundColor: isOpen
+                                            ? "rgba(0, 2, 1, 0.015)"
+                                            : "#FFFFFF",
+                                        cursor: "pointer",
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
-                                        marginBottom: "12px",
-                                        paddingBottom: "7px",
-                                        borderBottom: isLeadershipSection
-                                            ? "1px solid rgba(250, 52, 37, 0.24)"
-                                            : "1px solid rgba(0, 2, 1, 0.09)",
+                                        gap: "12px",
+                                        textAlign: "left",
                                     }}
                                 >
                                     <div
                                         style={{
                                             display: "flex",
                                             alignItems: "center",
-                                            gap: "8px",
+                                            gap: "12px",
+                                            minWidth: 0,
                                         }}
                                     >
                                         <span
                                             style={{
-                                                width: "8px",
-                                                height: "8px",
+                                                width: "9px",
+                                                height: "9px",
                                                 borderRadius: "2px",
                                                 transform: "rotate(45deg)",
                                                 backgroundColor:
                                                     isLeadershipSection
                                                         ? redColor
                                                         : blueColor,
-                                                display: "inline-block",
+                                                flexShrink: 0,
                                             }}
                                         />
-                                        <h2
-                                            style={{
-                                                margin: 0,
-                                                fontSize: "11px",
-                                                fontWeight: 800,
-                                                letterSpacing: "0.15em",
-                                                textTransform: "uppercase",
-                                                color: isLeadershipSection
-                                                    ? redColor
-                                                    : blackColor,
-                                            }}
-                                        >
-                                            {section.label}
-                                        </h2>
-                                    </div>
-                                    <span
-                                        style={{
-                                            fontSize: "11px",
-                                            fontWeight: 700,
-                                            padding: "2px 8px",
-                                            borderRadius: "999px",
-                                            backgroundColor:
-                                                "rgba(0, 2, 1, 0.06)",
-                                            color: greyColor,
-                                        }}
-                                    >
-                                        {section.items.length}
-                                    </span>
-                                </div>
 
-                                <div
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns:
-                                            "repeat(2, minmax(0, 1fr))",
-                                        gap: "12px",
-                                    }}
-                                >
-                                    {section.items.map((action, index) => {
-                                        const barColor = getAccentColor(
-                                            action.accent
-                                        )
-                                        const isPressed =
-                                            activeCardId === action.id
-                                        const isLastOddTile =
-                                            hasOddCount &&
-                                            index === section.items.length - 1
-                                        const isDarkFeatured =
-                                            Boolean(action.featured)
-
-                                        return (
-                                            <button
-                                                key={action.id}
-                                                type="button"
-                                                onPointerDown={() =>
-                                                    setActiveCardId(action.id)
-                                                }
-                                                onPointerUp={() =>
-                                                    setActiveCardId(null)
-                                                }
-                                                onPointerLeave={() =>
-                                                    setActiveCardId(null)
-                                                }
-                                                onClick={() =>
-                                                    setSelectedAction(action)
-                                                }
+                                        <div style={{ minWidth: 0 }}>
+                                            <div
                                                 style={{
-                                                    gridColumn: isLastOddTile
-                                                        ? "1 / -1"
-                                                        : undefined,
-                                                    textAlign: "left",
-                                                    padding: "17px 16px",
-                                                    borderRadius: "16px",
-                                                    border: isDarkFeatured
-                                                        ? `1px solid ${
-                                                              isLeadershipSection
-                                                                  ? "rgba(250, 52, 37, 0.55)"
-                                                                  : "rgba(255, 255, 255, 0.12)"
-                                                          }`
-                                                        : isLeadershipSection
-                                                          ? "1px solid rgba(250, 52, 37, 0.28)"
-                                                          : "1px solid rgba(0, 2, 1, 0.08)",
-                                                    background: isDarkFeatured
-                                                        ? `linear-gradient(135deg, ${blackColor} 0%, #141B2D 100%)`
-                                                        : "#FFFFFF",
-                                                    color: isDarkFeatured
-                                                        ? "#FFFFFF"
-                                                        : blackColor,
-                                                    cursor: "pointer",
                                                     display: "flex",
-                                                    flexDirection: "column",
-                                                    justifyContent:
-                                                        "space-between",
-                                                    minHeight: isLastOddTile
-                                                        ? "96px"
-                                                        : "118px",
-                                                    boxSizing: "border-box",
-                                                    transform: isPressed
-                                                        ? "scale(0.985)"
-                                                        : "scale(1)",
-                                                    transition:
-                                                        "transform 120ms ease, box-shadow 120ms ease",
-                                                    boxShadow: isDarkFeatured
-                                                        ? "0 10px 24px rgba(0, 2, 1, 0.14)"
-                                                        : "0 6px 18px rgba(0, 2, 1, 0.04)",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    marginBottom: "2px",
                                                 }}
                                             >
-                                                <div
+                                                <h2
                                                     style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent:
-                                                            "space-between",
-                                                        marginBottom: "14px",
+                                                        margin: 0,
+                                                        fontSize: "14px",
+                                                        fontWeight: 800,
+                                                        letterSpacing: "-0.01em",
+                                                        color: isLeadershipSection
+                                                            ? redColor
+                                                            : blackColor,
                                                     }}
                                                 >
-                                                    <div
-                                                        style={{
-                                                            width: "32px",
-                                                            height: "3.5px",
-                                                            borderRadius:
-                                                                "999px",
-                                                            backgroundColor:
-                                                                isDarkFeatured &&
-                                                                action.accent ===
-                                                                    "black"
-                                                                    ? "#FFFFFF"
-                                                                    : barColor,
-                                                        }}
-                                                    />
-                                                    <span
-                                                        style={{
-                                                            fontSize: "10px",
-                                                            fontWeight: 800,
-                                                            letterSpacing:
-                                                                "0.1em",
-                                                            textTransform:
-                                                                "uppercase",
-                                                            color: isDarkFeatured
-                                                                ? "rgba(255, 255, 255, 0.72)"
-                                                                : isLeadershipSection
-                                                                  ? redColor
-                                                                  : greyColor,
-                                                        }}
-                                                    >
-                                                        {isLeadershipSection
-                                                            ? "Admin →"
-                                                            : "Open →"}
-                                                    </span>
-                                                </div>
+                                                    {section.label}
+                                                </h2>
+                                                <span
+                                                    style={{
+                                                        fontSize: "10px",
+                                                        fontWeight: 800,
+                                                        padding: "2px 7px",
+                                                        borderRadius: "999px",
+                                                        backgroundColor:
+                                                            isLeadershipSection
+                                                                ? "rgba(250, 52, 37, 0.1)"
+                                                                : "rgba(0, 2, 1, 0.06)",
+                                                        color: isLeadershipSection
+                                                            ? redColor
+                                                            : greyColor,
+                                                    }}
+                                                >
+                                                    {section.items.length}
+                                                </span>
+                                            </div>
+                                            <div
+                                                style={{
+                                                    fontSize: "11px",
+                                                    color: greyColor,
+                                                    whiteSpace: "nowrap",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                }}
+                                            >
+                                                {section.description}
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                                <div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: "15px",
-                                                            fontWeight: 700,
-                                                            letterSpacing:
-                                                                "-0.01em",
-                                                            color: isDarkFeatured
-                                                                ? "#FFFFFF"
-                                                                : blackColor,
-                                                            marginBottom: "4px",
-                                                            lineHeight: 1.25,
-                                                        }}
-                                                    >
-                                                        {action.title}
-                                                    </div>
-                                                    <div
-                                                        style={{
-                                                            fontSize: "12px",
-                                                            color: isDarkFeatured
-                                                                ? "rgba(255, 255, 255, 0.68)"
-                                                                : greyColor,
-                                                            lineHeight: 1.35,
-                                                        }}
-                                                    >
-                                                        {action.subtitle}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
+                                    <span
+                                        style={{
+                                            width: "28px",
+                                            height: "28px",
+                                            borderRadius: "8px",
+                                            backgroundColor: "rgba(0, 2, 1, 0.05)",
+                                            color: blackColor,
+                                            fontSize: "14px",
+                                            fontWeight: 700,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                            transform: isOpen
+                                                ? "rotate(180deg)"
+                                                : "rotate(0deg)",
+                                            transition: "transform 160ms ease",
+                                        }}
+                                    >
+                                        ▾
+                                    </span>
+                                </button>
+
+                                {/* Collapsible Body */}
+                                {isOpen && (
+                                    <div
+                                        style={{
+                                            padding: "4px 16px 18px",
+                                            borderTop:
+                                                "1px solid rgba(0, 2, 1, 0.06)",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns:
+                                                    "repeat(2, minmax(0, 1fr))",
+                                                gap: "11px",
+                                                marginTop: "12px",
+                                            }}
+                                        >
+                                            {section.items.map(
+                                                (action, index) => {
+                                                    const barColor =
+                                                        getAccentColor(
+                                                            action.accent
+                                                        )
+                                                    const isPressed =
+                                                        activeCardId === action.id
+                                                    const isLastOddTile =
+                                                        hasOddCount &&
+                                                        index ===
+                                                            section.items
+                                                                .length -
+                                                                1
+                                                    const isDarkFeatured =
+                                                        Boolean(action.featured)
+
+                                                    return (
+                                                        <button
+                                                            key={action.id}
+                                                            type="button"
+                                                            onPointerDown={() =>
+                                                                setActiveCardId(
+                                                                    action.id
+                                                                )
+                                                            }
+                                                            onPointerUp={() =>
+                                                                setActiveCardId(
+                                                                    null
+                                                                )
+                                                            }
+                                                            onPointerLeave={() =>
+                                                                setActiveCardId(
+                                                                    null
+                                                                )
+                                                            }
+                                                            onClick={() =>
+                                                                setSelectedAction(
+                                                                    action
+                                                                )
+                                                            }
+                                                            style={{
+                                                                gridColumn:
+                                                                    isLastOddTile
+                                                                        ? "1 / -1"
+                                                                        : undefined,
+                                                                textAlign:
+                                                                    "left",
+                                                                padding:
+                                                                    "15px 14px",
+                                                                borderRadius:
+                                                                    "14px",
+                                                                border:
+                                                                    isDarkFeatured
+                                                                        ? `1px solid ${
+                                                                              isLeadershipSection
+                                                                                  ? "rgba(250, 52, 37, 0.55)"
+                                                                                  : "rgba(255, 255, 255, 0.12)"
+                                                                          }`
+                                                                        : isLeadershipSection
+                                                                          ? "1px solid rgba(250, 52, 37, 0.24)"
+                                                                          : "1px solid rgba(0, 2, 1, 0.08)",
+                                                                background:
+                                                                    isDarkFeatured
+                                                                        ? `linear-gradient(135deg, ${blackColor} 0%, #141B2D 100%)`
+                                                                        : "#F9FAFC",
+                                                                color:
+                                                                    isDarkFeatured
+                                                                        ? "#FFFFFF"
+                                                                        : blackColor,
+                                                                cursor:
+                                                                    "pointer",
+                                                                display: "flex",
+                                                                flexDirection:
+                                                                    "column",
+                                                                justifyContent:
+                                                                    "space-between",
+                                                                minHeight:
+                                                                    isLastOddTile
+                                                                        ? "88px"
+                                                                        : "108px",
+                                                                boxSizing:
+                                                                    "border-box",
+                                                                transform:
+                                                                    isPressed
+                                                                        ? "scale(0.985)"
+                                                                        : "scale(1)",
+                                                                transition:
+                                                                    "transform 120ms ease",
+                                                            }}
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    justifyContent:
+                                                                        "space-between",
+                                                                    marginBottom:
+                                                                        "12px",
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    style={{
+                                                                        width:
+                                                                            "28px",
+                                                                        height:
+                                                                            "3.5px",
+                                                                        borderRadius:
+                                                                            "999px",
+                                                                        backgroundColor:
+                                                                            isDarkFeatured &&
+                                                                            action.accent ===
+                                                                                "black"
+                                                                                ? "#FFFFFF"
+                                                                                : barColor,
+                                                                    }}
+                                                                />
+                                                                <span
+                                                                    style={{
+                                                                        fontSize:
+                                                                            "10px",
+                                                                        fontWeight: 800,
+                                                                        letterSpacing:
+                                                                            "0.08em",
+                                                                        textTransform:
+                                                                            "uppercase",
+                                                                        color:
+                                                                            isDarkFeatured
+                                                                                ? "rgba(255, 255, 255, 0.72)"
+                                                                                : isLeadershipSection
+                                                                                  ? redColor
+                                                                                  : greyColor,
+                                                                    }}
+                                                                >
+                                                                    {isLeadershipSection
+                                                                        ? "Admin →"
+                                                                        : "Open →"}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize:
+                                                                            "14px",
+                                                                        fontWeight: 700,
+                                                                        letterSpacing:
+                                                                            "-0.01em",
+                                                                        color:
+                                                                            isDarkFeatured
+                                                                                ? "#FFFFFF"
+                                                                                : blackColor,
+                                                                        marginBottom:
+                                                                            "3px",
+                                                                        lineHeight: 1.25,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        action.title
+                                                                    }
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize:
+                                                                            "12px",
+                                                                        color:
+                                                                            isDarkFeatured
+                                                                                ? "rgba(255, 255, 255, 0.68)"
+                                                                                : greyColor,
+                                                                        lineHeight: 1.35,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        action.subtitle
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    )
+                                                }
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </section>
                         )
                     })}
