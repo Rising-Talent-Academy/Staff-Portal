@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react"
+import { TeamDirectoryView } from "./TeamDirectoryView"
 
 export type PermissionGroup =
     | "journalist"
@@ -74,7 +75,7 @@ const ALL_ACTIONS: ActionItem[] = [
         accent: "black",
         status: "Active Roster",
         details:
-            "View active Rising Talent Academy team members, department heads, and internal contact handles.",
+            "View key Rising Talent Academy contacts and raise a ticket inside the portal.",
     },
     {
         id: "profile-docs",
@@ -274,6 +275,7 @@ export function DashboardScreen({
     blackColor = "#000201",
     onSignOut,
 }: DashboardScreenProps) {
+    const [showDirectory, setShowDirectory] = useState(false)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
     )
@@ -306,6 +308,30 @@ export function DashboardScreen({
             setPlatformHint("android")
         }
     }, [])
+
+    if (showDirectory) {
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <TeamDirectoryView
+                    user={user}
+                    onBack={() => setShowDirectory(false)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
 
     const sections = getGroupedSections(user.permissionGroup)
 
@@ -942,11 +968,20 @@ export function DashboardScreen({
                                                                     null
                                                                 )
                                                             }
-                                                            onClick={() =>
-                                                                setSelectedAction(
-                                                                    action
-                                                                )
-                                                            }
+                                                            onClick={() => {
+                                                                if (
+                                                                    action.id ===
+                                                                    "directory"
+                                                                ) {
+                                                                    setShowDirectory(
+                                                                        true
+                                                                    )
+                                                                } else {
+                                                                    setSelectedAction(
+                                                                        action
+                                                                    )
+                                                                }
+                                                            }}
                                                             style={{
                                                                 gridColumn:
                                                                     isLastOddTile
