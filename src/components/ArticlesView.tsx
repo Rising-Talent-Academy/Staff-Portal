@@ -47,12 +47,10 @@ export function ArticlesView({
     const [articles, setArticles] = useState<ArticleRecord[]>([])
     const [loading, setLoading] = useState(true)
 
-    // Approvals split state: Journalism vs Content Creation
     const [approvalDept, setApprovalDept] = useState<
         "journalism" | "content"
     >("journalism")
 
-    // Submission / edit form state
     const [editingId, setEditingId] = useState<string | null>(null)
     const [title, setTitle] = useState("")
     const [description, setDescription] = useState("")
@@ -89,7 +87,6 @@ export function ArticlesView({
             .select("*")
             .order("updated_at", { ascending: false })
 
-        // In Article Queue, show that person's own articles
         if (initialMode === "queue") {
             const { data: sessionData } = await supabase.auth.getSession()
             const authUserId = sessionData.session?.user?.id
@@ -672,7 +669,6 @@ export function ArticlesView({
                 gap: "22px",
             }}
         >
-            {/* Top Header */}
             <div
                 style={{
                     display: "flex",
@@ -726,11 +722,9 @@ export function ArticlesView({
                 </button>
             </div>
 
-            {/* MODE 1: SUBMIT ARTICLE ONLY */}
             {initialMode === "submit" &&
                 renderFormCard("Submit New Article", false)}
 
-            {/* MODE 2: ARTICLE QUEUE (THAT PERSON'S ARTICLES & STATUS) */}
             {initialMode === "queue" && (
                 <div
                     style={{
@@ -769,7 +763,7 @@ export function ArticlesView({
                                 fontSize: "14px",
                             }}
                         >
-                            You haven't submitted any articles yet. Use{" "}
+                            You haven&apos;t submitted any articles yet. Use{" "}
                             <strong>Submit Article</strong> from the portal to
                             send one in.
                         </div>
@@ -847,4 +841,380 @@ export function ArticlesView({
                                         src={item.photo_url}
                                         alt={item.title}
                                         style={{
-                               
+                                            maxWidth: "100%",
+                                            maxHeight: "220px",
+                                            borderRadius: "10px",
+                                            objectFit: "cover",
+                                        }}
+                                    />
+                                )}
+
+                                {item.article_body && (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "14px",
+                                            color: blackColor,
+                                            lineHeight: 1.6,
+                                            whiteSpace: "pre-line",
+                                        }}
+                                    >
+                                        {item.article_body}
+                                    </p>
+                                )}
+
+                                {item.credits && (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "12px",
+                                            fontWeight: 600,
+                                            color: greyColor,
+                                        }}
+                                    >
+                                        Credits: {item.credits}
+                                    </p>
+                                )}
+
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => startEditing(item)}
+                                        style={{
+                                            padding: "8px 13px",
+                                            borderRadius: "8px",
+                                            border:
+                                                "1px solid rgba(0, 2, 1, 0.16)",
+                                            backgroundColor: "#FFFFFF",
+                                            color: blackColor,
+                                            fontSize: "12px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Edit Article
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+
+            {initialMode === "approvals" && (
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "16px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "10px",
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setApprovalDept("journalism")}
+                            style={{
+                                padding: "12px 14px",
+                                borderRadius: "12px",
+                                border:
+                                    approvalDept === "journalism"
+                                        ? "none"
+                                        : "1px solid rgba(0, 2, 1, 0.14)",
+                                backgroundColor:
+                                    approvalDept === "journalism"
+                                        ? redColor
+                                        : "#FFFFFF",
+                                color:
+                                    approvalDept === "journalism"
+                                        ? "#FFFFFF"
+                                        : blackColor,
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            Journalism
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setApprovalDept("content")}
+                            style={{
+                                padding: "12px 14px",
+                                borderRadius: "12px",
+                                border:
+                                    approvalDept === "content"
+                                        ? "none"
+                                        : "1px solid rgba(0, 2, 1, 0.14)",
+                                backgroundColor:
+                                    approvalDept === "content"
+                                        ? blueColor
+                                        : "#FFFFFF",
+                                color:
+                                    approvalDept === "content"
+                                        ? "#FFFFFF"
+                                        : blackColor,
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            Content Creation
+                        </button>
+                    </div>
+
+                    {successMsg && (
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                color: blueColor,
+                            }}
+                        >
+                            {successMsg}
+                        </p>
+                    )}
+
+                    {approvalDept === "journalism" ? (
+                        <div
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "14px",
+                            }}
+                        >
+                            {editingId &&
+                                renderFormCard(
+                                    "Edit Journalism Submission",
+                                    isLeadership
+                                )}
+
+                            {loading ? (
+                                <p style={{ color: greyColor, fontSize: "14px" }}>
+                                    Loading journalism submissions...
+                                </p>
+                            ) : articles.length === 0 ? (
+                                <div
+                                    style={{
+                                        border: "1px solid rgba(0, 2, 1, 0.1)",
+                                        borderRadius: "14px",
+                                        padding: "18px",
+                                        backgroundColor: "#FFFFFF",
+                                        color: greyColor,
+                                        fontSize: "14px",
+                                    }}
+                                >
+                                    No journalism submissions yet.
+                                </div>
+                            ) : (
+                                articles.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        style={{
+                                            border:
+                                                "1px solid rgba(0, 2, 1, 0.12)",
+                                            borderRadius: "14px",
+                                            padding: "18px",
+                                            backgroundColor: "#FFFFFF",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: "10px",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                gap: "10px",
+                                                flexWrap: "wrap",
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    padding: "4px 10px",
+                                                    borderRadius: "999px",
+                                                    fontSize: "11px",
+                                                    fontWeight: 700,
+                                                    ...getStatusBadgeStyle(
+                                                        item.status
+                                                    ),
+                                                }}
+                                            >
+                                                {STATUS_LABELS[item.status]}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: "12px",
+                                                    color: greyColor,
+                                                }}
+                                            >
+                                                {item.author_name} (
+                                                {item.author_rta_id})
+                                            </span>
+                                        </div>
+
+                                        <h4
+                                            style={{
+                                                margin: 0,
+                                                fontSize: "17px",
+                                                fontWeight: 700,
+                                                color: blackColor,
+                                            }}
+                                        >
+                                            {item.title}
+                                        </h4>
+
+                                        {item.description && (
+                                            <p
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "13px",
+                                                    color: greyColor,
+                                                    lineHeight: 1.45,
+                                                }}
+                                            >
+                                                {item.description}
+                                            </p>
+                                        )}
+
+                                        {item.photo_url && (
+                                            <img
+                                                src={item.photo_url}
+                                                alt={item.title}
+                                                style={{
+                                                    maxWidth: "100%",
+                                                    maxHeight: "220px",
+                                                    borderRadius: "10px",
+                                                    objectFit: "cover",
+                                                }}
+                                            />
+                                        )}
+
+                                        {item.article_body && (
+                                            <p
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "14px",
+                                                    color: blackColor,
+                                                    lineHeight: 1.6,
+                                                    whiteSpace: "pre-line",
+                                                }}
+                                            >
+                                                {item.article_body}
+                                            </p>
+                                        )}
+
+                                        {item.credits && (
+                                            <p
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    color: greyColor,
+                                                }}
+                                            >
+                                                Credits: {item.credits}
+                                            </p>
+                                        )}
+
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                gap: "8px",
+                                                flexWrap: "wrap",
+                                                paddingTop: "4px",
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => startEditing(item)}
+                                                style={{
+                                                    padding: "8px 13px",
+                                                    borderRadius: "8px",
+                                                    border:
+                                                        "1px solid rgba(0, 2, 1, 0.16)",
+                                                    backgroundColor: "#FFFFFF",
+                                                    color: blackColor,
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Edit
+                                            </button>
+
+                                            {isLeadership &&
+                                                item.status !== "approved" && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleApproveArticle(
+                                                                item.id
+                                                            )
+                                                        }
+                                                        style={{
+                                                            padding: "8px 13px",
+                                                            borderRadius: "8px",
+                                                            border: "none",
+                                                            backgroundColor:
+                                                                blueColor,
+                                                            color: "#FFFFFF",
+                                                            fontSize: "12px",
+                                                            fontWeight: 600,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    ) : (
+                        <div
+                            style={{
+                                border: "1px solid rgba(0, 2, 1, 0.12)",
+                                borderRadius: "14px",
+                                padding: "20px",
+                                backgroundColor: "#FFFFFF",
+                            }}
+                        >
+                            <h3
+                                style={{
+                                    margin: "0 0 6px",
+                                    fontSize: "17px",
+                                    fontWeight: 700,
+                                    color: blackColor,
+                                }}
+                            >
+                                Content Creation Approvals
+                            </h3>
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "13px",
+                                    color: greyColor,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                Video clips, reels, graphics, and social edits
+                                awaiting review will appear here once content
+                                submissions are connected.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
