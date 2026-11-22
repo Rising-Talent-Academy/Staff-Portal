@@ -235,4 +235,96 @@ export function ResetPasswordScreen({
                                 >
                                     {showPassword ? "Hide" : "Show"}
                                 </button>
-                            
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="confirm-password"
+                                style={{
+                                    display: "block",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    letterSpacing: "0.06em",
+                                    textTransform: "uppercase",
+                                    color: greyColor,
+                                    marginBottom: "6px",
+                                }}
+                            >
+                                Confirm Password
+                            </label>
+                            <input
+                                id="confirm-password"
+                                type={showPassword ? "text" : "password"}
+                                value={confirmPassword}
+                                onChange={(e) =>
+                                    setConfirmPassword(e.target.value)
+                                }
+                                placeholder="Re-enter new password"
+                                style={{
+                                    width: "100%",
+                                    boxSizing: "border-box",
+                                    padding: "13px 14px",
+                                    fontSize: "15px",
+                                    borderRadius: "10px",
+                                    border: "1px solid rgba(0, 2, 1, 0.16)",
+                                    color: blackColor,
+                                    backgroundColor: "#FFFFFF",
+                                    outline: "none",
+                                }}
+                            />
+                        </div>
+
+                        {error && (
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "13px",
+                                    fontWeight: 500,
+                                    color: redColor,
+                                }}
+                            >
+                                {error}
+                            </p>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            style={{
+                                marginTop: "4px",
+                                width: "100%",
+                                padding: "14px 18px",
+                                borderRadius: "10px",
+                                border: "none",
+                                backgroundColor: blackColor,
+                                color: "#FFFFFF",
+                                fontSize: "14px",
+                                fontWeight: 600,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                                cursor: submitting ? "not-allowed" : "pointer",
+                                opacity: submitting ? 0.7 : 1,
+                            }}
+                        >
+                            {submitting ? "Saving..." : "Save New Password"}
+                        </button>
+                    </form>
+                )}
+            </div>
+
+            <footer
+                style={{
+                    maxWidth: "420px",
+                    width: "100%",
+                    margin: "24px auto 0",
+                    textAlign: "center",
+                    fontSize: "12px",
+                    color: greyColor,
+                }}
+            >
+                risingtalentacademy.co.uk
+            </footer>
+        </div>
+    )
+}
