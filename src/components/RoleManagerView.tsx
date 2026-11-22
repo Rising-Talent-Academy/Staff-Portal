@@ -274,6 +274,25 @@ export function RoleManagerView({
         setStatusMsg("")
         setDeletingId(row.id)
 
+        const { data: fnData, error: fnError } =
+            await supabase.functions.invoke("delete-staff-user", {
+                body: { user_id: row.id },
+            })
+
+        if (fnError) {
+            setErrorMsg(
+                fnError.message || "Failed to remove user from Supabase Auth."
+            )
+            setDeletingId(null)
+            return
+        }
+
+        if (fnData?.error) {
+            setErrorMsg(fnData.error)
+            setDeletingId(null)
+            return
+        }
+
         const { error } = await supabase
             .from("profiles")
             .delete()
@@ -283,7 +302,7 @@ export function RoleManagerView({
             setErrorMsg(error.message)
         } else {
             setStatusMsg(
-                `Removed ${row.full_name || row.rta_id} (${row.rta_id}) from roster.`
+                `Removed ${row.full_name || row.rta_id} (${row.rta_id}) from roster and Supabase Auth.`
             )
             setConfirmDeleteId(null)
             if (editingId === row.id) {
