@@ -15,6 +15,25 @@ interface LoginScreenProps {
     onSignedIn?: (profile: StaffProfile) => void
 }
 
+function getFriendlyErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message) {
+        if (err.message.includes("nr.from")) {
+            return fallback
+        }
+        return err.message
+    }
+    if (
+        typeof err === "object" &&
+        err !== null &&
+        "message" in err &&
+        typeof (err as { message?: unknown }).message === "string"
+    ) {
+        const msg = (err as { message: string }).message
+        return msg.includes("nr.from") ? fallback : msg
+    }
+    return fallback
+}
+
 export function LoginScreen({
     logoUrl = "",
     redColor = "#fa3425",
@@ -45,9 +64,7 @@ export function LoginScreen({
             .maybeSingle()
 
         if (lookupError || !data?.email) {
-            throw new Error(
-                "Could not find an account for that RTA ID. Try signing in with your email."
-            )
+            throw new Error("Invalid RTA ID or password.")
         }
 
         return data.email.trim().toLowerCase()
@@ -56,7 +73,7 @@ export function LoginScreen({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!identifier.trim() || !password.trim()) {
-            setError("Please enter both your RTA ID (or email) and password.")
+            setError("Please enter both your RTA ID and password.")
             return
         }
 
@@ -71,17 +88,15 @@ export function LoginScreen({
                     password,
                 })
 
-            if (authError || !data.user) {
-                setError(authError?.message || "Invalid login credentials.")
+            if (authError || !data?.user) {
+                setError("Invalid RTA ID or password.")
                 return
             }
 
             const profile = await fetchStaffProfile(data.user.id)
             onSignedIn?.(profile)
         } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Unable to sign in."
-            )
+            setError(getFriendlyErrorMessage(err, "Invalid RTA ID or password."))
         } finally {
             setSubmitting(false)
         }
@@ -182,14 +197,14 @@ export function LoginScreen({
                                 marginBottom: "6px",
                             }}
                         >
-                            RTA ID or Email
+                            RTA ID
                         </label>
                         <input
                             id="rta-id"
                             type="text"
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
-                            placeholder="e.g. A.Dyson8 or name@email.com"
+                            placeholder="Enter your RTA ID"
                             style={{
                                 width: "100%",
                                 boxSizing: "border-box",
