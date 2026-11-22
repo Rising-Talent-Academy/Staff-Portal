@@ -3,7 +3,7 @@ import {
     supabase,
     fetchStaffProfile,
     type StaffProfile,
-} from "./lib/supabase"
+} from "../lib/supabase"
 
 interface LoginScreenProps {
     logoUrl?: string
