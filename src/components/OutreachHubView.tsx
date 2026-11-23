@@ -115,6 +115,7 @@ function deptLabel(dept: string): string {
 
 export function OutreachHubView({
     user,
+    initialTab = "tracker",
     onBack,
     redColor = "#fa3425",
     blueColor = "#034eaf",
@@ -123,7 +124,7 @@ export function OutreachHubView({
 }: OutreachHubViewProps) {
     const [activeTab, setActiveTab] = useState<
         "tracker" | "templates" | "handoffs"
-    >("tracker")
+    >(initialTab)
     const [errorMsg, setErrorMsg] = useState("")
     const [statusMsg, setStatusMsg] = useState("")
 
