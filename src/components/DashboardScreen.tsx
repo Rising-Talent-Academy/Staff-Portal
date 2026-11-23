@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react"
 import { TeamDirectoryView } from "./TeamDirectoryView"
 import { ArticlesView } from "./ArticlesView"
 import { RoleManagerView } from "./RoleManagerView"
+import { OutreachHubView } from "./OutreachHubView"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 
 export type PermissionGroup =
     | "journalist"
     | "creator"
     | "both"
+    | "outreach"
     | "leadership"
 
 export interface StaffProfile {
@@ -17,7 +19,12 @@ export interface StaffProfile {
     permissionGroup: PermissionGroup
 }
 
-type ActionCategory = "core" | "journalist" | "creator" | "leadership"
+type ActionCategory =
+    | "core"
+    | "journalist"
+    | "creator"
+    | "outreach"
+    | "leadership"
 
 interface ActionItem {
     id: string
@@ -61,11 +68,21 @@ const ALL_ACTIONS: ActionItem[] = [
             "Read leadership announcements, weekly campaign priorities, and internal operational updates.",
     },
     {
+        id: "dept-handoffs",
+        title: "Inter-Dept Handoffs",
+        subtitle: "Collab briefs & cross-team tasks",
+        category: "core",
+        accent: "blue",
+        status: "Live Board",
+        details:
+            "Pick up and complete cross-department requests from Outreach & Comms, Journalism, Creators, and Leadership.",
+    },
+    {
         id: "brand-kit",
         title: "Brand & Media Kit",
         subtitle: "Logos, colours & style rules",
         category: "core",
-        accent: "blue",
+        accent: "black",
         status: "Current",
         details:
             "Download official Rising Talent Academy logos, hex codes, social templates, and editorial style guidelines.",
@@ -75,7 +92,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Team Directory",
         subtitle: "Staff, roles & contacts",
         category: "core",
-        accent: "black",
+        accent: "blue",
         status: "Active Roster",
         details:
             "View key Rising Talent Academy contacts and raise a ticket inside the portal.",
@@ -85,7 +102,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "My Profile & Docs",
         subtitle: "RTA ID, agreements & policies",
         category: "core",
-        accent: "blue",
+        accent: "black",
         status: "Verified",
         details:
             "Review your assigned RTA ID details, signed volunteer agreements, and core compliance policies.",
@@ -157,6 +174,39 @@ const ALL_ACTIONS: ActionItem[] = [
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
     },
 
+    // Outreach & Communications
+    {
+        id: "outreach-tracker",
+        title: "Outreach & Podcast Tracker",
+        subtitle: "Rising Talent Talkers & sponsors",
+        category: "outreach",
+        accent: "red",
+        status: "Pipeline",
+        featured: true,
+        details:
+            "Track drivers, teams, and brand partnerships for Rising Talent Talkers and RTA collaborations without double-contacting leads.",
+    },
+    {
+        id: "outreach-templates",
+        title: "Outreach Templates & Bio",
+        subtitle: "DM scripts, pitches & RTA blurb",
+        category: "outreach",
+        accent: "blue",
+        status: "Copy Ready",
+        details:
+            "Copy ready-to-send podcast invites, team outreach messages, sponsorship pitches, and official RTA descriptions.",
+    },
+    {
+        id: "outreach-handoffs",
+        title: "Send Dept Handoff",
+        subtitle: "Brief Journalism, Creators & Admin",
+        category: "outreach",
+        accent: "black",
+        status: "Comms Desk",
+        details:
+            "Send confirmed guest details, promo requests, and partnership announcements directly to other departments.",
+    },
+
     // Leadership & Admin
     {
         id: "approvals",
@@ -177,7 +227,7 @@ const ALL_ACTIONS: ActionItem[] = [
         accent: "blue",
         status: "Admin",
         details:
-            "Create new RTA IDs, assign Journalist, Content Creator, Both, or Leadership access, and manage active status.",
+            "Create new RTA IDs, assign Journalist, Content Creator, Both, Outreach & Comms, or Leadership access, and manage active status.",
     },
     {
         id: "hr-legal",
@@ -205,6 +255,7 @@ const GROUP_LABELS: Record<PermissionGroup, string> = {
     journalist: "Journalist Access",
     creator: "Content Creator Access",
     both: "Journalist & Creator Access",
+    outreach: "Outreach & Comms Access",
     leadership: "Leadership & Admin Access",
 }
 
@@ -216,7 +267,7 @@ const SECTION_CONFIG: {
     {
         category: "core",
         label: "General",
-        description: "Briefings, brand kit, roster & profile",
+        description: "Briefings, handoffs, brand kit, roster & profile",
     },
     {
         category: "journalist",
@@ -227,6 +278,11 @@ const SECTION_CONFIG: {
         category: "creator",
         label: "Content Creation",
         description: "Calendar, asset uploads & hooks",
+    },
+    {
+        category: "outreach",
+        label: "Outreach & Communications",
+        description: "Podcast guests, brand partnerships & comms",
     },
     {
         category: "leadership",
@@ -267,6 +323,7 @@ function getDefaultOpenSections(
         core: true,
         journalist: group === "journalist" || group === "both",
         creator: group === "creator",
+        outreach: group === "outreach",
         leadership: group === "leadership",
     }
 }
@@ -281,7 +338,15 @@ export function DashboardScreen({
     onSignOut,
 }: DashboardScreenProps) {
     const [activeView, setActiveView] = useState<
-        "directory" | "queue" | "submit" | "approvals" | "role-manager" | null
+        | "directory"
+        | "queue"
+        | "submit"
+        | "approvals"
+        | "role-manager"
+        | "outreach-tracker"
+        | "outreach-templates"
+        | "outreach-handoffs"
+        | null
     >(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
@@ -406,6 +471,42 @@ export function DashboardScreen({
         )
     }
 
+    if (
+        activeView === "outreach-tracker" ||
+        activeView === "outreach-templates" ||
+        activeView === "outreach-handoffs"
+    ) {
+        const initialTab =
+            activeView === "outreach-templates"
+                ? "templates"
+                : activeView === "outreach-handoffs"
+                  ? "handoffs"
+                  : "tracker"
+
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <OutreachHubView
+                    user={user}
+                    initialTab={initialTab}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
     const sections = getGroupedSections(user.permissionGroup)
 
     const toggleSection = (category: ActionCategory) => {
@@ -423,6 +524,7 @@ export function DashboardScreen({
             core: nextState,
             journalist: nextState,
             creator: nextState,
+            outreach: nextState,
             leadership: nextState,
         })
     }
@@ -1134,6 +1236,29 @@ export function DashboardScreen({
                                                                 ) {
                                                                     setActiveView(
                                                                         "role-manager"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "outreach-tracker"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "outreach-tracker"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "outreach-templates"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "outreach-templates"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                        "outreach-handoffs" ||
+                                                                    action.id ===
+                                                                        "dept-handoffs"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "outreach-handoffs"
                                                                     )
                                                                 } else {
                                                                     setSelectedAction(
