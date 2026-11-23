@@ -48,6 +48,7 @@ function normalizeGroup(value: string): PermissionGroup {
         value === "journalist" ||
         value === "creator" ||
         value === "both" ||
+        value === "outreach" ||
         value === "leadership"
     ) {
         return value
