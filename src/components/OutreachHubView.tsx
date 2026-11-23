@@ -4,6 +4,7 @@ import type { StaffProfile } from "./DashboardScreen"
 
 interface OutreachHubViewProps {
     user: StaffProfile
+    initialTab?: "tracker" | "templates" | "handoffs"
     onBack: () => void
     redColor?: string
     blueColor?: string
