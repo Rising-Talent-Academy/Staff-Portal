@@ -25,6 +25,7 @@ const PERMISSION_OPTIONS: { value: PermissionGroup; label: string }[] = [
     { value: "journalist", label: "Journalist" },
     { value: "creator", label: "Content Creator" },
     { value: "both", label: "Journalist & Creator" },
+    { value: "outreach", label: "Outreach & Comms" },
     { value: "leadership", label: "Leadership & Admin" },
 ]
 
