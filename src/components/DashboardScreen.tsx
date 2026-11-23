@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react"
 import { TeamDirectoryView } from "./TeamDirectoryView"
 import { ArticlesView } from "./ArticlesView"
 import { RoleManagerView } from "./RoleManagerView"
-import { OutreachHubView } from "./OutreachHubView"
-import { OutreachHubView } from "./OutreachPageMode"
+import { OutreachHubView, type OutreachPageMode } from "./OutreachHubView"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 
 export type PermissionGroup =
@@ -477,7 +476,7 @@ export function DashboardScreen({
         activeView === "outreach-templates" ||
         activeView === "outreach-handoffs"
     ) {
-        const initialTab =
+        const pageMode: OutreachPageMode =
             activeView === "outreach-templates"
                 ? "templates"
                 : activeView === "outreach-handoffs"
@@ -496,8 +495,9 @@ export function DashboardScreen({
                 }}
             >
                 <OutreachHubView
+                    key={pageMode}
                     user={user}
-                    initialTab={initialTab}
+                    mode={pageMode}
                     onBack={() => setActiveView(null)}
                     redColor={redColor}
                     blueColor={blueColor}
