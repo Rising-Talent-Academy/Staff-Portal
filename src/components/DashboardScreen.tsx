@@ -3,6 +3,7 @@ import { TeamDirectoryView } from "./TeamDirectoryView"
 import { ArticlesView } from "./ArticlesView"
 import { RoleManagerView } from "./RoleManagerView"
 import { OutreachHubView } from "./OutreachHubView"
+import { OutreachHubView } from "./OutreachPageMode"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 
 export type PermissionGroup =
