@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { StaffProfile } from "./DashboardScreen"
 
+export type OutreachPageMode = "tracker" | "templates" | "handoffs"
+
 interface OutreachHubViewProps {
     user: StaffProfile
-    initialTab?: "tracker" | "templates" | "handoffs"
+    mode?: OutreachPageMode
     onBack: () => void
     redColor?: string
     blueColor?: string
@@ -98,6 +100,12 @@ const OUTREACH_TEMPLATES = [
     },
 ]
 
+const PAGE_TITLES: Record<OutreachPageMode, string> = {
+    tracker: "Outreach & Podcast Tracker",
+    templates: "Outreach Templates & Bio",
+    handoffs: "Inter-Dept Handoffs",
+}
+
 function categoryLabel(cat: string): string {
     return (
         CATEGORY_OPTIONS.find((c) => c.value === cat)?.label ||
@@ -115,22 +123,19 @@ function deptLabel(dept: string): string {
 
 export function OutreachHubView({
     user,
-    initialTab = "tracker",
+    mode = "tracker",
     onBack,
     redColor = "#fa3425",
     blueColor = "#034eaf",
     greyColor = "#696969",
     blackColor = "#000201",
 }: OutreachHubViewProps) {
-    const [activeTab, setActiveTab] = useState<
-        "tracker" | "templates" | "handoffs"
-    >(initialTab)
     const [errorMsg, setErrorMsg] = useState("")
     const [statusMsg, setStatusMsg] = useState("")
 
-    // Leads state
+    // Leads state (only fetched on tracker page)
     const [leads, setLeads] = useState<OutreachLead[]>([])
-    const [loadingLeads, setLoadingLeads] = useState(true)
+    const [loadingLeads, setLoadingLeads] = useState(mode === "tracker")
     const [leadSearch, setLeadSearch] = useState("")
     const [leadCategoryFilter, setLeadCategoryFilter] = useState<string>("all")
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>("all")
@@ -144,12 +149,12 @@ export function OutreachHubView({
     const [notes, setNotes] = useState("")
     const [savingLead, setSavingLead] = useState(false)
 
-    // Templates copy state
+    // Templates copy state (only shown on templates page)
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
-    // Handoffs state
+    // Handoffs state (only fetched on handoffs page)
     const [handoffs, setHandoffs] = useState<DepartmentHandoff[]>([])
-    const [loadingHandoffs, setLoadingHandoffs] = useState(true)
+    const [loadingHandoffs, setLoadingHandoffs] = useState(mode === "handoffs")
     const [handoffTitle, setHandoffTitle] = useState("")
     const [handoffDept, setHandoffDept] = useState<HandoffDept>("journalist")
     const [handoffBrief, setHandoffBrief] = useState("")
@@ -157,6 +162,7 @@ export function OutreachHubView({
 
     const loadLeads = async () => {
         setLoadingLeads(true)
+        setErrorMsg("")
         const { data, error } = await supabase
             .from("outreach_leads")
             .select("*")
@@ -172,6 +178,7 @@ export function OutreachHubView({
 
     const loadHandoffs = async () => {
         setLoadingHandoffs(true)
+        setErrorMsg("")
         const { data, error } = await supabase
             .from("department_handoffs")
             .select("*")
@@ -186,9 +193,12 @@ export function OutreachHubView({
     }
 
     useEffect(() => {
-        loadLeads()
-        loadHandoffs()
-    }, [])
+        if (mode === "tracker") {
+            loadLeads()
+        } else if (mode === "handoffs") {
+            loadHandoffs()
+        }
+    }, [mode])
 
     const handleAddLead = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -208,7 +218,7 @@ export function OutreachHubView({
             handle_or_email: handleOrEmail.trim() || null,
             status: leadStatus,
             owner_rta_id: user.rtaId,
-            owner_name: user.fullName || user.rtaId,
+            owner_name: user.name || user.rtaId,
             notes: notes.trim() || null,
             last_contacted_at: new Date().toISOString(),
         })
@@ -293,7 +303,7 @@ export function OutreachHubView({
             brief: handoffBrief.trim(),
             status: "open",
             created_by_rta_id: user.rtaId,
-            created_by_name: user.fullName || user.rtaId,
+            created_by_name: user.name || user.rtaId,
         })
 
         if (error) {
@@ -317,7 +327,7 @@ export function OutreachHubView({
         const payload: Record<string, unknown> = { status: nextStatus }
         if (nextStatus === "in_progress") {
             payload.claimed_by_rta_id = user.rtaId
-            payload.claimed_by_name = user.fullName || user.rtaId
+            payload.claimed_by_name = user.name || user.rtaId
         }
 
         const { error } = await supabase
@@ -421,7 +431,7 @@ export function OutreachHubView({
                             color: blackColor,
                         }}
                     >
-                        Outreach & Comms Hub
+                        {PAGE_TITLES[mode]}
                     </h1>
                 </div>
 
@@ -441,57 +451,6 @@ export function OutreachHubView({
                 >
                     ← Back to Portal
                 </button>
-            </div>
-
-            {/* Sub-Navigation Tabs */}
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "8px",
-                    marginBottom: "16px",
-                }}
-            >
-                {[
-                    { id: "tracker", label: `Tracker (${leads.length})` },
-                    { id: "templates", label: "Templates & Bio" },
-                    {
-                        id: "handoffs",
-                        label: `Handoffs (${handoffs.filter((h) => h.status !== "completed").length})`,
-                    },
-                ].map((tab) => {
-                    const active = activeTab === tab.id
-                    return (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() =>
-                                setActiveTab(
-                                    tab.id as
-                                        | "tracker"
-                                        | "templates"
-                                        | "handoffs"
-                                )
-                            }
-                            style={{
-                                padding: "10px 8px",
-                                borderRadius: "11px",
-                                border: active
-                                    ? `1px solid ${blueColor}`
-                                    : "1px solid rgba(0, 2, 1, 0.1)",
-                                backgroundColor: active
-                                    ? blueColor
-                                    : "#FFFFFF",
-                                color: active ? "#FFFFFF" : blackColor,
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                            }}
-                        >
-                            {tab.label}
-                        </button>
-                    )
-                })}
             </div>
 
             {errorMsg && (
@@ -528,8 +487,8 @@ export function OutreachHubView({
                 </div>
             )}
 
-            {/* TAB 1: OUTREACH TRACKER */}
-            {activeTab === "tracker" && (
+            {/* DEDICATED PAGE 1: OUTREACH & PODCAST TRACKER */}
+            {mode === "tracker" && (
                 <>
                     <section
                         style={{
@@ -704,7 +663,6 @@ export function OutreachHubView({
                         </form>
                     </section>
 
-                    {/* Leads List */}
                     <section
                         style={{
                             borderRadius: "18px",
@@ -956,8 +914,8 @@ export function OutreachHubView({
                 </>
             )}
 
-            {/* TAB 2: TEMPLATES & BIO */}
-            {activeTab === "templates" && (
+            {/* DEDICATED PAGE 2: TEMPLATES & BIO */}
+            {mode === "templates" && (
                 <div
                     style={{
                         display: "flex",
@@ -1055,8 +1013,8 @@ export function OutreachHubView({
                 </div>
             )}
 
-            {/* TAB 3: INTER-DEPARTMENT HANDOFFS */}
-            {activeTab === "handoffs" && (
+            {/* DEDICATED PAGE 3: INTER-DEPARTMENT HANDOFFS */}
+            {mode === "handoffs" && (
                 <>
                     <section
                         style={{
