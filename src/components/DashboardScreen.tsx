@@ -5,6 +5,7 @@ import { RoleManagerView } from "./RoleManagerView"
 import { OutreachHubView, type OutreachPageMode } from "./OutreachHubView"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 import { TechSystemsView } from "./TechSystemsView"
+import { HrLegalVaultView } from "./HrLegalVaultView"
 
 export type PermissionGroup =
     | "journalist"
@@ -348,6 +349,7 @@ export function DashboardScreen({
         | "outreach-templates"
         | "outreach-handoffs"
         | "tech-systems"
+        | "hr-legal"
         | null
     >(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
@@ -486,6 +488,30 @@ export function DashboardScreen({
                 }}
             >
                 <TechSystemsView
+                    user={user}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
+    if (activeView === "hr-legal") {
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <HrLegalVaultView
                     user={user}
                     onBack={() => setActiveView(null)}
                     redColor={redColor}
@@ -1270,6 +1296,13 @@ export function DashboardScreen({
                                                                 ) {
                                                                     setActiveView(
                                                                         "tech-systems"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "hr-legal"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "hr-legal"
                                                                     )
                                                                 } else if (
                                                                     action.id ===
