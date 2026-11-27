@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { formatPermissionGroupLabel, type PermissionGroup } from "./supabase"
+import { formatPermissionGroupLabel, type PermissionGroup } from "../lib/supabase"
 
 export type AssetStatus = "In Review" | "Approved" | "Needs Tweaks"
 export type AssetType =
