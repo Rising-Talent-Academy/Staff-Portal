@@ -54,11 +54,12 @@ interface ActionItem {
     targetView?: PortalView
 }
 
-interface ActionSection {
+interface DepartmentPage {
     category: ActionCategory
-    label: string
-    tabLabel: string
+    title: string
+    badge: string
     description: string
+    accentType: "brand" | "journalist" | "creator" | "outreach" | "leadership"
     items: ActionItem[]
 }
 
@@ -73,7 +74,7 @@ interface DashboardScreenProps {
 }
 
 const ALL_ACTIONS: ActionItem[] = [
-    // General (Visible to Everyone)
+    // General
     {
         id: "briefings",
         title: "Team Briefings",
@@ -289,41 +290,47 @@ const GROUP_LABELS: Record<PermissionGroup, string> = {
     leadership: "Leadership & Admin Access",
 }
 
-const SECTION_CONFIG: {
+const DEPARTMENT_META: {
     category: ActionCategory
-    label: string
-    tabLabel: string
+    title: string
+    badge: string
     description: string
+    accentType: DepartmentPage["accentType"]
 }[] = [
     {
         category: "core",
-        label: "General",
-        tabLabel: "General",
+        title: "General",
+        badge: "All Staff",
         description: "Briefings, handoffs, brand kit, roster & profile",
+        accentType: "brand",
     },
     {
         category: "journalist",
-        label: "Journalism",
-        tabLabel: "Journalism",
+        title: "Journalism",
+        badge: "Editorial",
         description: "Article queue, copy submission & press notes",
+        accentType: "journalist",
     },
     {
         category: "creator",
-        label: "Content Creation",
-        tabLabel: "Creator",
-        description: "Calendar, asset uploads & hooks",
+        title: "Content Creation",
+        badge: "Social & Video",
+        description: "Content calendar, asset uploads & hooks",
+        accentType: "creator",
     },
     {
         category: "outreach",
-        label: "Outreach & Communications",
-        tabLabel: "Outreach",
-        description: "Podcast guests, brand partnerships & comms",
+        title: "Outreach & Comms",
+        badge: "Partnerships",
+        description: "Podcast tracker, outreach scripts & handoffs",
+        accentType: "outreach",
     },
     {
         category: "leadership",
-        label: "Leadership & Admin",
-        tabLabel: "Admin",
-        description: "Approvals, RTA IDs, HR/legal & systems",
+        title: "Leadership & Admin",
+        badge: "Restricted",
+        description: "Approvals, RTA IDs, HR/legal vault & systems",
+        accentType: "leadership",
     },
 ]
 
@@ -339,27 +346,13 @@ function isCategoryAllowed(
     return category === group
 }
 
-function getGroupedSections(group: PermissionGroup): ActionSection[] {
-    return SECTION_CONFIG.filter((section) =>
-        isCategoryAllowed(section.category, group)
-    ).map((section) => ({
-        category: section.category,
-        label: section.label,
-        tabLabel: section.tabLabel,
-        description: section.description,
-        items: ALL_ACTIONS.filter(
-            (action) => action.category === section.category
-        ),
+function getDepartmentPages(group: PermissionGroup): DepartmentPage[] {
+    return DEPARTMENT_META.filter((dept) =>
+        isCategoryAllowed(dept.category, group)
+    ).map((dept) => ({
+        ...dept,
+        items: ALL_ACTIONS.filter((action) => action.category === dept.category),
     }))
-}
-
-function getDefaultActiveTab(group: PermissionGroup): ActionCategory | "all" {
-    if (group === "creator") return "creator"
-    if (group === "journalist") return "journalist"
-    if (group === "outreach") return "outreach"
-    if (group === "both") return "all"
-    if (group === "leadership") return "all"
-    return "core"
 }
 
 export function DashboardScreen({
@@ -371,29 +364,25 @@ export function DashboardScreen({
     blackColor = "#000201",
     onSignOut,
 }: DashboardScreenProps) {
+    const [activeDepartment, setActiveDepartment] =
+        useState<ActionCategory | null>(null)
     const [activeView, setActiveView] = useState<PortalView | null>(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
         null
     )
-    const [activeCardId, setActiveCardId] = useState<string | null>(null)
-    const [bannerDismissed, setBannerDismissed] = useState(false)
+    const [pressedId, setPressedId] = useState<string | null>(null)
     const [installSheetOpen, setInstallSheetOpen] = useState(false)
     const [isStandalone, setIsStandalone] = useState(false)
-    const [platformHint, setPlatformHint] = useState<
-        "ios" | "android" | "other"
-    >("other")
-    const [activeTab, setActiveTab] = useState<ActionCategory | "all">(() =>
-        getDefaultActiveTab(user.permissionGroup)
-    )
     const [pushStatusMsg, setPushStatusMsg] = useState("")
     const [pushBusy, setPushBusy] = useState(false)
 
-    const sections = getGroupedSections(user.permissionGroup)
-    const isTwoSectionUser = sections.length === 2
-    const showAllTab = sections.length > 2
+    const departments = getDepartmentPages(user.permissionGroup)
+    const currentDepartment =
+        departments.find((d) => d.category === activeDepartment) ?? null
 
     useEffect(() => {
-        setActiveTab(getDefaultActiveTab(user.permissionGroup))
+        setActiveDepartment(null)
+        setActiveView(null)
     }, [user.permissionGroup])
 
     useEffect(() => {
@@ -402,13 +391,6 @@ export function DashboardScreen({
             (window.navigator as Navigator & { standalone?: boolean })
                 .standalone === true
         setIsStandalone(Boolean(standalone))
-
-        const ua = window.navigator.userAgent.toLowerCase()
-        if (/iphone|ipad|ipod/.test(ua)) {
-            setPlatformHint("ios")
-        } else if (/android/.test(ua)) {
-            setPlatformHint("android")
-        }
     }, [])
 
     const handleEnablePush = async () => {
@@ -436,13 +418,30 @@ export function DashboardScreen({
         return blackColor
     }
 
+    const getDepartmentStripe = (accentType: DepartmentPage["accentType"]) => {
+        if (accentType === "leadership") {
+            return `linear-gradient(90deg, ${redColor} 0%, ${blackColor} 100%)`
+        }
+        if (accentType === "journalist") {
+            return `linear-gradient(90deg, ${redColor} 0%, #9E1B12 100%)`
+        }
+        if (accentType === "creator") {
+            return `linear-gradient(90deg, ${blueColor} 0%, #022C66 100%)`
+        }
+        if (accentType === "outreach") {
+            return `linear-gradient(90deg, ${blueColor} 0%, ${redColor} 100%)`
+        }
+        return `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`
+    }
+
     const pageBackdrop: React.CSSProperties = {
         minHeight: "100dvh",
-        background: `radial-gradient(circle at 88% 4%, rgba(3, 78, 175, 0.12), transparent 40%), radial-gradient(circle at 12% 2%, rgba(250, 52, 37, 0.11), transparent 36%), #F4F6FA`,
+        background: `radial-gradient(circle at 88% 4%, rgba(3, 78, 175, 0.13), transparent 40%), radial-gradient(circle at 12% 2%, rgba(250, 52, 37, 0.12), transparent 36%), #F3F5F9`,
         color: blackColor,
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }
 
+    // Active sub-views
     if (activeView === "directory") {
         return (
             <div style={pageBackdrop}>
@@ -578,26 +577,425 @@ export function DashboardScreen({
         )
     }
 
-    const visibleSections =
-        activeTab === "all"
-            ? sections
-            : sections.filter((section) => section.category === activeTab)
+    // Dedicated Department Page (when a department card is opened)
+    if (currentDepartment) {
+        const isAdminDept = currentDepartment.category === "leadership"
+        const hasOddCount = currentDepartment.items.length % 2 === 1
 
-    const shortInstallTip =
-        platformHint === "ios"
-            ? "iPhone (Safari): Tap Share → Add to Home Screen."
-            : platformHint === "android"
-              ? "Android (Chrome): Tap ⋮ → Add to Home screen."
-              : "Add to your Home Screen for full-screen portal access."
+        return (
+            <div
+                style={{
+                    ...pageBackdrop,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    padding: "16px 16px 30px",
+                    boxSizing: "border-box",
+                }}
+            >
+                <div
+                    style={{
+                        maxWidth: "680px",
+                        width: "100%",
+                        margin: "0 auto",
+                    }}
+                >
+                    {/* Sub-page Top Bar */}
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            marginBottom: "14px",
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setActiveDepartment(null)}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "9px 14px",
+                                borderRadius: "11px",
+                                border: "1px solid rgba(0, 2, 1, 0.14)",
+                                backgroundColor: "#FFFFFF",
+                                color: blackColor,
+                                fontSize: "12.5px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                boxShadow: "0 4px 12px rgba(0, 2, 1, 0.05)",
+                            }}
+                        >
+                            <span>← Paddock Pass</span>
+                        </button>
 
-    const tabs: { key: ActionCategory | "all"; label: string }[] = [
-        ...sections.map((sec) => ({
-            key: sec.category,
-            label: sec.tabLabel,
-        })),
-        ...(showAllTab ? [{ key: "all" as const, label: "All Sections" }] : []),
-    ]
+                        <span
+                            style={{
+                                fontSize: "11px",
+                                fontWeight: 800,
+                                letterSpacing: "0.12em",
+                                textTransform: "uppercase",
+                                color: greyColor,
+                            }}
+                        >
+                            {user.rtaId}
+                        </span>
+                    </div>
 
+                    {/* Department Header Banner */}
+                    <section
+                        style={{
+                            borderRadius: "20px",
+                            background: `linear-gradient(140deg, ${blackColor} 0%, #0D1424 60%, #071A38 100%)`,
+                            color: "#FFFFFF",
+                            overflow: "hidden",
+                            marginBottom: "16px",
+                            boxShadow: "0 16px 32px rgba(0, 2, 1, 0.18)",
+                            border: "1px solid rgba(255, 255, 255, 0.08)",
+                        }}
+                    >
+                        <div
+                            style={{
+                                height: "4px",
+                                width: "100%",
+                                background: getDepartmentStripe(
+                                    currentDepartment.accentType
+                                ),
+                            }}
+                        />
+
+                        <div style={{ padding: "18px 20px" }}>
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "8px",
+                                    marginBottom: "6px",
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontSize: "10px",
+                                        fontWeight: 800,
+                                        letterSpacing: "0.18em",
+                                        textTransform: "uppercase",
+                                        color: isAdminDept
+                                            ? "#FF8F86"
+                                            : "#8BB9FF",
+                                    }}
+                                >
+                                    {currentDepartment.badge}
+                                </span>
+                                <span
+                                    style={{
+                                        fontSize: "11px",
+                                        fontWeight: 700,
+                                        color: "rgba(255, 255, 255, 0.68)",
+                                    }}
+                                >
+                                    {currentDepartment.items.length} sections
+                                </span>
+                            </div>
+
+                            <h1
+                                style={{
+                                    margin: "0 0 5px",
+                                    fontSize: "21px",
+                                    fontWeight: 800,
+                                    letterSpacing: "-0.02em",
+                                    color: "#FFFFFF",
+                                }}
+                            >
+                                {currentDepartment.title}
+                            </h1>
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "13px",
+                                    lineHeight: 1.45,
+                                    color: "rgba(255, 255, 255, 0.72)",
+                                }}
+                            >
+                                {currentDepartment.description}
+                            </p>
+                        </div>
+                    </section>
+
+                    {/* All Sections Inside This Department */}
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                            gap: "12px",
+                        }}
+                    >
+                        {currentDepartment.items.map((action, index) => {
+                            const accentHex = getAccentColor(action.accent)
+                            const isPressed = pressedId === action.id
+                            const isLastOdd =
+                                hasOddCount &&
+                                index === currentDepartment.items.length - 1
+                            const isFeatured = Boolean(action.featured)
+
+                            return (
+                                <button
+                                    key={action.id}
+                                    type="button"
+                                    onPointerDown={() => setPressedId(action.id)}
+                                    onPointerUp={() => setPressedId(null)}
+                                    onPointerLeave={() => setPressedId(null)}
+                                    onClick={() => handleActionClick(action)}
+                                    style={{
+                                        gridColumn: isLastOdd
+                                            ? "1 / -1"
+                                            : undefined,
+                                        textAlign: "left",
+                                        padding: "16px 15px",
+                                        borderRadius: "17px",
+                                        border: isFeatured
+                                            ? `1px solid ${
+                                                  isAdminDept
+                                                      ? "rgba(250, 52, 37, 0.5)"
+                                                      : "rgba(255, 255, 255, 0.12)"
+                                              }`
+                                            : "1px solid rgba(0, 2, 1, 0.09)",
+                                        background: isFeatured
+                                            ? `linear-gradient(140deg, ${blackColor} 0%, #131B2E 100%)`
+                                            : "#FFFFFF",
+                                        color: isFeatured
+                                            ? "#FFFFFF"
+                                            : blackColor,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "space-between",
+                                        minHeight: isLastOdd ? "94px" : "116px",
+                                        boxSizing: "border-box",
+                                        boxShadow: isFeatured
+                                            ? "0 12px 24px rgba(0, 2, 1, 0.16)"
+                                            : "0 8px 20px rgba(0, 2, 1, 0.04)",
+                                        transform: isPressed
+                                            ? "scale(0.985)"
+                                            : "scale(1)",
+                                        transition: "transform 120ms ease",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: "8px",
+                                            marginBottom: "14px",
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                width: "30px",
+                                                height: "4px",
+                                                borderRadius: "999px",
+                                                backgroundColor:
+                                                    isFeatured &&
+                                                    action.accent === "black"
+                                                        ? "#FFFFFF"
+                                                        : accentHex,
+                                            }}
+                                        />
+                                        <span
+                                            style={{
+                                                fontSize: "10px",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.08em",
+                                                textTransform: "uppercase",
+                                                color: isFeatured
+                                                    ? "rgba(255, 255, 255, 0.78)"
+                                                    : isAdminDept
+                                                      ? redColor
+                                                      : greyColor,
+                                            }}
+                                        >
+                                            {action.targetView
+                                                ? "Open →"
+                                                : "View →"}
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <div
+                                            style={{
+                                                fontSize: "14.5px",
+                                                fontWeight: 700,
+                                                letterSpacing: "-0.01em",
+                                                lineHeight: 1.25,
+                                                marginBottom: "4px",
+                                                color: isFeatured
+                                                    ? "#FFFFFF"
+                                                    : blackColor,
+                                            }}
+                                        >
+                                            {action.title}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: "12px",
+                                                lineHeight: 1.35,
+                                                color: isFeatured
+                                                    ? "rgba(255, 255, 255, 0.72)"
+                                                    : greyColor,
+                                            }}
+                                        >
+                                            {action.subtitle}
+                                        </div>
+                                    </div>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                <footer
+                    style={{
+                        maxWidth: "680px",
+                        width: "100%",
+                        margin: "32px auto 0",
+                        paddingTop: "16px",
+                        borderTop: "1px solid rgba(0, 2, 1, 0.09)",
+                        textAlign: "center",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: greyColor,
+                    }}
+                >
+                    risingtalentacademy.co.uk
+                </footer>
+
+                {selectedAction && renderActionModal()}
+            </div>
+        )
+    }
+
+    function renderActionModal() {
+        if (!selectedAction) return null
+        return (
+            <div
+                onClick={() => setSelectedAction(null)}
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    backgroundColor: "rgba(0, 2, 1, 0.58)",
+                    display: "flex",
+                    alignItems: "flex-end",
+                    justifyContent: "center",
+                    zIndex: 20,
+                }}
+            >
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        width: "100%",
+                        maxWidth: "520px",
+                        backgroundColor: "#FFFFFF",
+                        borderTopLeftRadius: "22px",
+                        borderTopRightRadius: "22px",
+                        padding: "22px 22px 28px",
+                        boxSizing: "border-box",
+                    }}
+                >
+                    <div
+                        style={{
+                            width: "36px",
+                            height: "4px",
+                            borderRadius: "999px",
+                            backgroundColor: "rgba(0, 2, 1, 0.14)",
+                            margin: "0 auto 16px",
+                        }}
+                    />
+
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: "10px",
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: "11px",
+                                fontWeight: 800,
+                                letterSpacing: "0.09em",
+                                textTransform: "uppercase",
+                                color: getAccentColor(selectedAction.accent),
+                            }}
+                        >
+                            {selectedAction.status}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedAction(null)}
+                            style={{
+                                border: "none",
+                                background: "transparent",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                color: greyColor,
+                                cursor: "pointer",
+                            }}
+                        >
+                            Close
+                        </button>
+                    </div>
+
+                    <h2
+                        style={{
+                            margin: "0 0 8px",
+                            fontSize: "20px",
+                            fontWeight: 800,
+                            letterSpacing: "-0.01em",
+                            color: blackColor,
+                        }}
+                    >
+                        {selectedAction.title}
+                    </h2>
+                    <p
+                        style={{
+                            margin: "0 0 20px",
+                            fontSize: "14px",
+                            lineHeight: 1.55,
+                            color: greyColor,
+                        }}
+                    >
+                        {selectedAction.details}
+                    </p>
+
+                    <button
+                        type="button"
+                        onClick={() => setSelectedAction(null)}
+                        style={{
+                            width: "100%",
+                            padding: "13px 16px",
+                            borderRadius: "11px",
+                            border: "none",
+                            backgroundColor: blackColor,
+                            color: "#FFFFFF",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            letterSpacing: "0.05em",
+                            textTransform: "uppercase",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Main Dashboard Screen (Paddock Pass + Department Cards)
     return (
         <div
             style={{
@@ -691,8 +1089,14 @@ export function DashboardScreen({
                         </div>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        {!isStandalone && !bannerDismissed && (
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                        }}
+                    >
+                        {!isStandalone && (
                             <button
                                 type="button"
                                 onClick={() => setInstallSheetOpen(true)}
@@ -731,14 +1135,14 @@ export function DashboardScreen({
                     </div>
                 </header>
 
-                {/* Paddock Pass Hero Card */}
+                {/* Paddock Pass Hero */}
                 <section
                     style={{
                         borderRadius: "22px",
                         background: `linear-gradient(140deg, ${blackColor} 0%, #0D1322 58%, #071A38 100%)`,
                         color: "#FFFFFF",
                         overflow: "hidden",
-                        marginBottom: "14px",
+                        marginBottom: "18px",
                         boxShadow: "0 18px 36px rgba(0, 2, 1, 0.2)",
                         border: "1px solid rgba(255, 255, 255, 0.08)",
                     }}
@@ -819,7 +1223,6 @@ export function DashboardScreen({
                                 style={{
                                     color: "rgba(255, 255, 255, 0.28)",
                                     fontSize: "15px",
-                                    fontWeight: 400,
                                 }}
                             >
                                 |
@@ -937,319 +1340,181 @@ export function DashboardScreen({
                     </div>
                 </section>
 
-                {/* Segmented Pill Switcher (Clean Full Labels, No Dropdowns) */}
-                <div
-                    role="tablist"
-                    aria-label="Portal sections"
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
-                        gap: "6px",
-                        padding: "5px",
-                        marginBottom: "14px",
-                        borderRadius: "16px",
-                        backgroundColor: "#FFFFFF",
-                        border: "1px solid rgba(0, 2, 1, 0.09)",
-                        boxShadow: "0 6px 18px rgba(0, 2, 1, 0.05)",
-                    }}
-                >
-                    {tabs.map((tab) => {
-                        const isSelected = activeTab === tab.key
-                        return (
-                            <button
-                                key={tab.key}
-                                type="button"
-                                role="tab"
-                                aria-selected={isSelected}
-                                onClick={() => setActiveTab(tab.key)}
-                                style={{
-                                    position: "relative",
-                                    padding: isTwoSectionUser
-                                        ? "11px 12px"
-                                        : "10px 8px",
-                                    borderRadius: "12px",
-                                    border: "none",
-                                    background: isSelected
-                                        ? `linear-gradient(135deg, ${blackColor} 0%, #131B2E 100%)`
-                                        : "transparent",
-                                    color: isSelected ? "#FFFFFF" : blackColor,
-                                    cursor: "pointer",
-                                    fontSize: "12.5px",
-                                    fontWeight: 800,
-                                    letterSpacing: "-0.01em",
-                                    overflow: "hidden",
-                                    boxShadow: isSelected
-                                        ? "0 6px 14px rgba(0, 2, 1, 0.16)"
-                                        : "none",
-                                }}
-                            >
-                                <span>{tab.label}</span>
-                                {isSelected && (
-                                    <span
-                                        style={{
-                                            position: "absolute",
-                                            left: 0,
-                                            right: 0,
-                                            bottom: 0,
-                                            height: "3px",
-                                            background: `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`,
-                                        }}
-                                    />
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-
-                {/* Section Cards */}
+                {/* Department Cards (Each opens its own full page) */}
                 <div
                     style={{
                         display: "flex",
                         flexDirection: "column",
-                        gap: "14px",
+                        gap: "12px",
                     }}
                 >
-                    {visibleSections.map((section) => {
-                        const isLeadershipSection =
-                            section.category === "leadership"
-                        const hasOddCount = section.items.length % 2 === 1
+                    {departments.map((dept) => {
+                        const isPressed = pressedId === dept.category
+                        const isAdmin = dept.category === "leadership"
 
                         return (
-                            <section
-                                key={section.category}
+                            <button
+                                key={dept.category}
+                                type="button"
+                                onPointerDown={() => setPressedId(dept.category)}
+                                onPointerUp={() => setPressedId(null)}
+                                onPointerLeave={() => setPressedId(null)}
+                                onClick={() =>
+                                    setActiveDepartment(dept.category)
+                                }
                                 style={{
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: 0,
                                     borderRadius: "20px",
+                                    border: isAdmin
+                                        ? "1px solid rgba(250, 52, 37, 0.28)"
+                                        : "1px solid rgba(0, 2, 1, 0.09)",
                                     backgroundColor: "#FFFFFF",
-                                    border: isLeadershipSection
-                                        ? "1px solid rgba(250, 52, 37, 0.24)"
-                                        : "1px solid rgba(0, 2, 1, 0.08)",
-                                    boxShadow: "0 10px 24px rgba(0, 2, 1, 0.04)",
                                     overflow: "hidden",
+                                    cursor: "pointer",
+                                    boxShadow: "0 10px 24px rgba(0, 2, 1, 0.05)",
+                                    transform: isPressed
+                                        ? "scale(0.988)"
+                                        : "scale(1)",
+                                    transition: "transform 120ms ease",
                                 }}
                             >
                                 <div
                                     style={{
-                                        height: "3px",
+                                        height: "3.5px",
                                         width: "100%",
-                                        background: isLeadershipSection
-                                            ? `linear-gradient(90deg, ${redColor} 0%, ${blackColor} 100%)`
-                                            : `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`,
+                                        background: getDepartmentStripe(
+                                            dept.accentType
+                                        ),
                                     }}
                                 />
 
-                                <div style={{ padding: "16px 16px 18px" }}>
+                                <div style={{ padding: "17px 18px" }}>
                                     <div
                                         style={{
                                             display: "flex",
                                             alignItems: "center",
+                                            justifyContent: "space-between",
                                             gap: "10px",
-                                            marginBottom: "13px",
+                                            marginBottom: "6px",
                                         }}
                                     >
-                                        <span
+                                        <div
                                             style={{
-                                                width: "8px",
-                                                height: "8px",
-                                                borderRadius: "2px",
-                                                transform: "rotate(45deg)",
-                                                backgroundColor:
-                                                    isLeadershipSection
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "8px",
+                                                minWidth: 0,
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    width: "8px",
+                                                    height: "8px",
+                                                    borderRadius: "2px",
+                                                    transform: "rotate(45deg)",
+                                                    backgroundColor: isAdmin
                                                         ? redColor
                                                         : blueColor,
-                                                flexShrink: 0,
-                                            }}
-                                        />
-                                        <div style={{ minWidth: 0 }}>
-                                            <h2
+                                                    flexShrink: 0,
+                                                }}
+                                            />
+                                            <span
                                                 style={{
-                                                    margin: 0,
-                                                    fontSize: "14.5px",
+                                                    fontSize: "17px",
                                                     fontWeight: 800,
-                                                    letterSpacing: "-0.01em",
-                                                    color: isLeadershipSection
+                                                    letterSpacing: "-0.015em",
+                                                    color: isAdmin
                                                         ? redColor
                                                         : blackColor,
                                                 }}
                                             >
-                                                {section.label}
-                                            </h2>
-                                            <div
-                                                style={{
-                                                    fontSize: "11.5px",
-                                                    color: greyColor,
-                                                    marginTop: "1px",
-                                                }}
-                                            >
-                                                {section.description}
-                                            </div>
+                                                {dept.title}
+                                            </span>
                                         </div>
+
+                                        <span
+                                            style={{
+                                                fontSize: "11px",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.06em",
+                                                textTransform: "uppercase",
+                                                color: isAdmin
+                                                    ? redColor
+                                                    : blueColor,
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            Open →
+                                        </span>
                                     </div>
+
+                                    <p
+                                        style={{
+                                            margin: "0 0 12px",
+                                            fontSize: "13px",
+                                            lineHeight: 1.4,
+                                            color: greyColor,
+                                        }}
+                                    >
+                                        {dept.description}
+                                    </p>
 
                                     <div
                                         style={{
-                                            display: "grid",
-                                            gridTemplateColumns:
-                                                "repeat(2, minmax(0, 1fr))",
-                                            gap: "11px",
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            alignItems: "center",
+                                            gap: "6px",
                                         }}
                                     >
-                                        {section.items.map((action, index) => {
-                                            const barColor = getAccentColor(
-                                                action.accent
-                                            )
-                                            const isPressed =
-                                                activeCardId === action.id
-                                            const isLastOddTile =
-                                                hasOddCount &&
-                                                index ===
-                                                    section.items.length - 1
-                                            const isDarkFeatured = Boolean(
-                                                action.featured
-                                            )
+                                        <span
+                                            style={{
+                                                padding: "4px 9px",
+                                                borderRadius: "7px",
+                                                backgroundColor: "#F3F5F9",
+                                                fontSize: "11px",
+                                                fontWeight: 700,
+                                                color: blackColor,
+                                            }}
+                                        >
+                                            {dept.items.length} sections
+                                        </span>
 
-                                            return (
-                                                <button
-                                                    key={action.id}
-                                                    type="button"
-                                                    onPointerDown={() =>
-                                                        setActiveCardId(
-                                                            action.id
-                                                        )
-                                                    }
-                                                    onPointerUp={() =>
-                                                        setActiveCardId(null)
-                                                    }
-                                                    onPointerLeave={() =>
-                                                        setActiveCardId(null)
-                                                    }
-                                                    onClick={() =>
-                                                        handleActionClick(action)
-                                                    }
-                                                    style={{
-                                                        gridColumn: isLastOddTile
-                                                            ? "1 / -1"
-                                                            : undefined,
-                                                        textAlign: "left",
-                                                        padding: "15px 14px",
-                                                        borderRadius: "15px",
-                                                        border: isDarkFeatured
-                                                            ? `1px solid ${
-                                                                  isLeadershipSection
-                                                                      ? "rgba(250, 52, 37, 0.55)"
-                                                                      : "rgba(255, 255, 255, 0.12)"
-                                                              }`
-                                                            : isLeadershipSection
-                                                              ? "1px solid rgba(250, 52, 37, 0.22)"
-                                                              : "1px solid rgba(0, 2, 1, 0.08)",
-                                                        background: isDarkFeatured
-                                                            ? `linear-gradient(135deg, ${blackColor} 0%, #141B2D 100%)`
-                                                            : "#F9FAFC",
-                                                        color: isDarkFeatured
-                                                            ? "#FFFFFF"
-                                                            : blackColor,
-                                                        cursor: "pointer",
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        justifyContent:
-                                                            "space-between",
-                                                        minHeight: isLastOddTile
-                                                            ? "88px"
-                                                            : "108px",
-                                                        boxSizing: "border-box",
-                                                        transform: isPressed
-                                                            ? "scale(0.985)"
-                                                            : "scale(1)",
-                                                        transition:
-                                                            "transform 120ms ease",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            justifyContent:
-                                                                "space-between",
-                                                            marginBottom:
-                                                                "12px",
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                width: "28px",
-                                                                height: "3.5px",
-                                                                borderRadius:
-                                                                    "999px",
-                                                                backgroundColor:
-                                                                    isDarkFeatured &&
-                                                                    action.accent ===
-                                                                        "black"
-                                                                        ? "#FFFFFF"
-                                                                        : barColor,
-                                                            }}
-                                                        />
-                                                        <span
-                                                            style={{
-                                                                fontSize:
-                                                                    "10px",
-                                                                fontWeight: 800,
-                                                                letterSpacing:
-                                                                    "0.08em",
-                                                                textTransform:
-                                                                    "uppercase",
-                                                                color:
-                                                                    isDarkFeatured
-                                                                        ? "rgba(255, 255, 255, 0.75)"
-                                                                        : isLeadershipSection
-                                                                          ? redColor
-                                                                          : greyColor,
-                                                            }}
-                                                        >
-                                                            {isLeadershipSection
-                                                                ? "Admin →"
-                                                                : "Open →"}
-                                                        </span>
-                                                    </div>
+                                        {dept.items.slice(0, 3).map((item) => (
+                                            <span
+                                                key={item.id}
+                                                style={{
+                                                    padding: "4px 9px",
+                                                    borderRadius: "7px",
+                                                    backgroundColor:
+                                                        "rgba(0, 2, 1, 0.04)",
+                                                    fontSize: "11px",
+                                                    fontWeight: 600,
+                                                    color: greyColor,
+                                                }}
+                                            >
+                                                {item.title}
+                                            </span>
+                                        ))}
 
-                                                    <div>
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    "14px",
-                                                                fontWeight: 700,
-                                                                letterSpacing:
-                                                                    "-0.01em",
-                                                                color:
-                                                                    isDarkFeatured
-                                                                        ? "#FFFFFF"
-                                                                        : blackColor,
-                                                                marginBottom:
-                                                                    "3px",
-                                                                lineHeight: 1.25,
-                                                            }}
-                                                        >
-                                                            {action.title}
-                                                        </div>
-                                                        <div
-                                                            style={{
-                                                                fontSize:
-                                                                    "12px",
-                                                                color:
-                                                                    isDarkFeatured
-                                                                        ? "rgba(255, 255, 255, 0.7)"
-                                                                        : greyColor,
-                                                                lineHeight: 1.35,
-                                                            }}
-                                                        >
-                                                            {action.subtitle}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            )
-                                        })}
+                                        {dept.items.length > 3 && (
+                                            <span
+                                                style={{
+                                                    padding: "4px 8px",
+                                                    borderRadius: "7px",
+                                                    fontSize: "11px",
+                                                    fontWeight: 700,
+                                                    color: greyColor,
+                                                }}
+                                            >
+                                                +{dept.items.length - 3} more
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
-                            </section>
+                            </button>
                         )
                     })}
                 </div>
@@ -1273,7 +1538,7 @@ export function DashboardScreen({
                 risingtalentacademy.co.uk
             </footer>
 
-            {/* Install Instructions Sheet (iPhone & Android) */}
+            {/* Install Instructions Sheet */}
             {installSheetOpen && (
                 <div
                     onClick={() => setInstallSheetOpen(false)}
@@ -1322,7 +1587,6 @@ export function DashboardScreen({
                                     margin: 0,
                                     fontSize: "18px",
                                     fontWeight: 800,
-                                    letterSpacing: "-0.01em",
                                     color: blackColor,
                                 }}
                             >
@@ -1456,150 +1720,7 @@ export function DashboardScreen({
                 </div>
             )}
 
-            {/* Action Detail Sheet */}
-            {selectedAction && (
-                <div
-                    onClick={() => setSelectedAction(null)}
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        backgroundColor: "rgba(0, 2, 1, 0.58)",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        justifyContent: "center",
-                        zIndex: 20,
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            width: "100%",
-                            maxWidth: "520px",
-                            backgroundColor: "#FFFFFF",
-                            borderTopLeftRadius: "22px",
-                            borderTopRightRadius: "22px",
-                            padding: "22px 22px 28px",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: "36px",
-                                height: "4px",
-                                borderRadius: "999px",
-                                backgroundColor: "rgba(0, 2, 1, 0.14)",
-                                margin: "0 auto 16px",
-                            }}
-                        />
-
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                marginBottom: "10px",
-                            }}
-                        >
-                            <span
-                                style={{
-                                    fontSize: "11px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.09em",
-                                    textTransform: "uppercase",
-                                    color: getAccentColor(
-                                        selectedAction.accent
-                                    ),
-                                }}
-                            >
-                                {selectedAction.status}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedAction(null)}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    fontSize: "13px",
-                                    fontWeight: 600,
-                                    color: greyColor,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Close
-                            </button>
-                        </div>
-
-                        <h2
-                            style={{
-                                margin: "0 0 8px",
-                                fontSize: "20px",
-                                fontWeight: 800,
-                                letterSpacing: "-0.01em",
-                                color: blackColor,
-                            }}
-                        >
-                            {selectedAction.title}
-                        </h2>
-                        <p
-                            style={{
-                                margin: "0 0 20px",
-                                fontSize: "14px",
-                                lineHeight: 1.55,
-                                color: greyColor,
-                            }}
-                        >
-                            {selectedAction.details}
-                        </p>
-
-                        {selectedAction.targetView && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const view = selectedAction.targetView!
-                                    setSelectedAction(null)
-                                    setActiveView(view)
-                                }}
-                                style={{
-                                    width: "100%",
-                                    padding: "13px 16px",
-                                    borderRadius: "11px",
-                                    border: "none",
-                                    background: `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`,
-                                    color: "#FFFFFF",
-                                    fontSize: "13px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.05em",
-                                    textTransform: "uppercase",
-                                    cursor: "pointer",
-                                    marginBottom: "10px",
-                                }}
-                            >
-                                Open Section
-                            </button>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={() => setSelectedAction(null)}
-                            style={{
-                                width: "100%",
-                                padding: "12px 16px",
-                                borderRadius: "11px",
-                                border: "1px solid rgba(0, 2, 1, 0.14)",
-                                backgroundColor: "#FFFFFF",
-                                color: blackColor,
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                letterSpacing: "0.05em",
-                                textTransform: "uppercase",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Done
-                        </button>
-                    </div>
-                </div>
-            )}
+            {selectedAction && renderActionModal()}
         </div>
     )
 }
