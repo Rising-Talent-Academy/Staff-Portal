@@ -57,7 +57,7 @@ interface ActionItem {
 interface ActionSection {
     category: ActionCategory
     label: string
-    shortLabel: string
+    tabLabel: string
     description: string
     items: ActionItem[]
 }
@@ -292,37 +292,37 @@ const GROUP_LABELS: Record<PermissionGroup, string> = {
 const SECTION_CONFIG: {
     category: ActionCategory
     label: string
-    shortLabel: string
+    tabLabel: string
     description: string
 }[] = [
     {
         category: "core",
         label: "General",
-        shortLabel: "General",
+        tabLabel: "General",
         description: "Briefings, handoffs, brand kit, roster & profile",
     },
     {
         category: "journalist",
         label: "Journalism",
-        shortLabel: "Journalism",
+        tabLabel: "Journalism",
         description: "Article queue, copy submission & press notes",
     },
     {
         category: "creator",
         label: "Content Creation",
-        shortLabel: "Creator",
+        tabLabel: "Creator",
         description: "Calendar, asset uploads & hooks",
     },
     {
         category: "outreach",
         label: "Outreach & Communications",
-        shortLabel: "Outreach",
+        tabLabel: "Outreach",
         description: "Podcast guests, brand partnerships & comms",
     },
     {
         category: "leadership",
         label: "Leadership & Admin",
-        shortLabel: "Leadership",
+        tabLabel: "Admin",
         description: "Approvals, RTA IDs, HR/legal & systems",
     },
 ]
@@ -345,7 +345,7 @@ function getGroupedSections(group: PermissionGroup): ActionSection[] {
     ).map((section) => ({
         category: section.category,
         label: section.label,
-        shortLabel: section.shortLabel,
+        tabLabel: section.tabLabel,
         description: section.description,
         items: ALL_ACTIONS.filter(
             (action) => action.category === section.category
@@ -389,7 +389,8 @@ export function DashboardScreen({
     const [pushBusy, setPushBusy] = useState(false)
 
     const sections = getGroupedSections(user.permissionGroup)
-    const hasMultipleDepts = sections.length > 2
+    const isTwoSectionUser = sections.length === 2
+    const showAllTab = sections.length > 2
 
     useEffect(() => {
         setActiveTab(getDefaultActiveTab(user.permissionGroup))
@@ -435,17 +436,16 @@ export function DashboardScreen({
         return blackColor
     }
 
-    const shellStyle: React.CSSProperties = {
+    const pageBackdrop: React.CSSProperties = {
         minHeight: "100dvh",
-        background:
-            "radial-gradient(circle at top right, rgba(3, 78, 175, 0.1), transparent 44%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.09), transparent 40%), #F2F4F8",
+        background: `radial-gradient(circle at 88% 4%, rgba(3, 78, 175, 0.12), transparent 40%), radial-gradient(circle at 12% 2%, rgba(250, 52, 37, 0.11), transparent 36%), #F4F6FA`,
         color: blackColor,
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }
 
     if (activeView === "directory") {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <TeamDirectoryView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -464,7 +464,7 @@ export function DashboardScreen({
         activeView === "approvals"
     ) {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <ArticlesView
                     user={user}
                     initialMode={activeView}
@@ -480,7 +480,7 @@ export function DashboardScreen({
 
     if (activeView === "role-manager") {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <RoleManagerView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -495,7 +495,7 @@ export function DashboardScreen({
 
     if (activeView === "tech-systems") {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <TechSystemsView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -510,7 +510,7 @@ export function DashboardScreen({
 
     if (activeView === "hr-legal") {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <HrLegalVaultView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -525,18 +525,20 @@ export function DashboardScreen({
 
     if (activeView === "upload-assets") {
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <div
                     style={{
                         maxWidth: "680px",
                         width: "100%",
                         margin: "0 auto",
-                        padding: "18px 16px 28px",
+                        padding: "18px 16px 32px",
                         boxSizing: "border-box",
                     }}
                 >
                     <UploadAssetsView
                         defaultCreator={user.name}
+                        permissionGroup={user.permissionGroup}
+                        singleSection={user.permissionGroup === "creator"}
                         onBack={() => setActiveView(null)}
                         redColor={redColor}
                         blueColor={blueColor}
@@ -561,7 +563,7 @@ export function DashboardScreen({
                   : "tracker"
 
         return (
-            <div style={shellStyle}>
+            <div style={pageBackdrop}>
                 <OutreachHubView
                     key={pageMode}
                     user={user}
@@ -581,44 +583,29 @@ export function DashboardScreen({
             ? sections
             : sections.filter((section) => section.category === activeTab)
 
-    const totalActionsCount = sections.reduce(
-        (sum, sec) => sum + sec.items.length,
-        0
-    )
-
     const shortInstallTip =
         platformHint === "ios"
             ? "iPhone (Safari): Tap Share → Add to Home Screen."
             : platformHint === "android"
               ? "Android (Chrome): Tap ⋮ → Add to Home screen."
-              : "Add to your iPhone or Android Home Screen for full-screen app access."
+              : "Add to your Home Screen for full-screen portal access."
 
-    const tabs: { key: ActionCategory | "all"; label: string; count: number }[] =
-        [
-            ...sections.map((sec) => ({
-                key: sec.category,
-                label: sec.shortLabel,
-                count: sec.items.length,
-            })),
-            ...(hasMultipleDepts
-                ? [
-                      {
-                          key: "all" as const,
-                          label: "All",
-                          count: totalActionsCount,
-                      },
-                  ]
-                : []),
-        ]
+    const tabs: { key: ActionCategory | "all"; label: string }[] = [
+        ...sections.map((sec) => ({
+            key: sec.category,
+            label: sec.tabLabel,
+        })),
+        ...(showAllTab ? [{ key: "all" as const, label: "All Sections" }] : []),
+    ]
 
     return (
         <div
             style={{
-                ...shellStyle,
+                ...pageBackdrop,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "16px 16px 28px",
+                padding: "16px 16px 30px",
                 boxSizing: "border-box",
             }}
         >
@@ -629,108 +616,13 @@ export function DashboardScreen({
                     margin: "0 auto",
                 }}
             >
-                {/* Top Web App Install Banner */}
-                {!isStandalone && !bannerDismissed && (
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "12px",
-                            padding: "11px 14px",
-                            marginBottom: "14px",
-                            borderRadius: "14px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.09)",
-                            boxShadow: "0 6px 18px rgba(0, 2, 1, 0.05)",
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: "4px",
-                                alignSelf: "stretch",
-                                borderRadius: "999px",
-                                background: `linear-gradient(180deg, ${redColor}, ${blueColor})`,
-                                flexShrink: 0,
-                            }}
-                        />
-
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                                style={{
-                                    fontSize: "12px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.02em",
-                                    color: blackColor,
-                                    marginBottom: "2px",
-                                }}
-                            >
-                                Install RTA Staff Portal App
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: "11px",
-                                    color: greyColor,
-                                    lineHeight: 1.35,
-                                }}
-                            >
-                                {shortInstallTip}
-                            </div>
-                        </div>
-
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                flexShrink: 0,
-                            }}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => setInstallSheetOpen(true)}
-                                style={{
-                                    padding: "7px 11px",
-                                    borderRadius: "9px",
-                                    border: "none",
-                                    backgroundColor: blueColor,
-                                    color: "#FFFFFF",
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    letterSpacing: "0.04em",
-                                    textTransform: "uppercase",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Steps
-                            </button>
-                            <button
-                                type="button"
-                                aria-label="Dismiss install banner"
-                                onClick={() => setBannerDismissed(true)}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: greyColor,
-                                    fontSize: "18px",
-                                    fontWeight: 600,
-                                    lineHeight: 1,
-                                    padding: "4px",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Header */}
+                {/* Top Header */}
                 <header
                     style={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
+                        gap: "12px",
                         padding: "4px 2px 14px",
                     }}
                 >
@@ -739,22 +631,24 @@ export function DashboardScreen({
                             display: "flex",
                             alignItems: "center",
                             gap: "12px",
+                            minWidth: 0,
                         }}
                     >
                         {logoUrl && (
                             <div
                                 style={{
-                                    width: "42px",
-                                    height: "42px",
-                                    borderRadius: "12px",
+                                    width: "44px",
+                                    height: "44px",
+                                    borderRadius: "13px",
                                     backgroundColor: "#FFFFFF",
-                                    border: "1px solid rgba(0, 2, 1, 0.08)",
+                                    border: "1px solid rgba(0, 2, 1, 0.09)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    padding: "5px",
+                                    padding: "6px",
                                     boxSizing: "border-box",
-                                    boxShadow: "0 4px 12px rgba(0, 2, 1, 0.05)",
+                                    boxShadow: "0 6px 16px rgba(0, 2, 1, 0.06)",
+                                    flexShrink: 0,
                                 }}
                             >
                                 <img
@@ -770,12 +664,12 @@ export function DashboardScreen({
                                 />
                             </div>
                         )}
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                             <div
                                 style={{
-                                    fontSize: "12px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.16em",
+                                    fontSize: "13px",
+                                    fontWeight: 900,
+                                    letterSpacing: "0.15em",
                                     textTransform: "uppercase",
                                     color: blackColor,
                                 }}
@@ -784,9 +678,12 @@ export function DashboardScreen({
                             </div>
                             <div
                                 style={{
-                                    fontSize: "11px",
+                                    fontSize: "11.5px",
                                     fontWeight: 600,
                                     color: greyColor,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
                                 }}
                             >
                                 Rising Talent Academy
@@ -794,35 +691,56 @@ export function DashboardScreen({
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={onSignOut}
-                        style={{
-                            padding: "8px 14px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(0, 2, 1, 0.14)",
-                            backgroundColor: "#FFFFFF",
-                            color: blackColor,
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            boxShadow: "0 3px 10px rgba(0, 2, 1, 0.04)",
-                        }}
-                    >
-                        Sign Out
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {!isStandalone && !bannerDismissed && (
+                            <button
+                                type="button"
+                                onClick={() => setInstallSheetOpen(true)}
+                                style={{
+                                    padding: "8px 11px",
+                                    borderRadius: "10px",
+                                    border: "1px solid rgba(3, 78, 175, 0.22)",
+                                    backgroundColor: "rgba(3, 78, 175, 0.07)",
+                                    color: blueColor,
+                                    fontSize: "11px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.03em",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                App
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onSignOut}
+                            style={{
+                                padding: "8px 14px",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(0, 2, 1, 0.14)",
+                                backgroundColor: "#FFFFFF",
+                                color: blackColor,
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                boxShadow: "0 3px 10px rgba(0, 2, 1, 0.04)",
+                            }}
+                        >
+                            Sign Out
+                        </button>
+                    </div>
                 </header>
 
-                {/* Executive Credential Card */}
+                {/* Paddock Pass Hero Card */}
                 <section
                     style={{
-                        borderRadius: "20px",
-                        background:
-                            "linear-gradient(135deg, #000201 0%, #0E131F 65%, #071936 100%)",
+                        borderRadius: "22px",
+                        background: `linear-gradient(140deg, ${blackColor} 0%, #0D1322 58%, #071A38 100%)`,
                         color: "#FFFFFF",
                         overflow: "hidden",
                         marginBottom: "14px",
-                        boxShadow: "0 16px 34px rgba(0, 2, 1, 0.18)",
+                        boxShadow: "0 18px 36px rgba(0, 2, 1, 0.2)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
                     }}
                 >
                     <div
@@ -833,7 +751,7 @@ export function DashboardScreen({
                         }}
                     />
 
-                    <div style={{ padding: "18px 20px 20px" }}>
+                    <div style={{ padding: "19px 20px 20px" }}>
                         <div
                             style={{
                                 display: "flex",
@@ -846,9 +764,9 @@ export function DashboardScreen({
                                 style={{
                                     fontSize: "10px",
                                     fontWeight: 800,
-                                    letterSpacing: "0.18em",
+                                    letterSpacing: "0.2em",
                                     textTransform: "uppercase",
-                                    color: "rgba(255, 255, 255, 0.56)",
+                                    color: "rgba(255, 255, 255, 0.62)",
                                 }}
                             >
                                 Paddock Pass
@@ -860,7 +778,7 @@ export function DashboardScreen({
                                     gap: "6px",
                                     fontSize: "10px",
                                     fontWeight: 800,
-                                    letterSpacing: "0.12em",
+                                    letterSpacing: "0.14em",
                                     textTransform: "uppercase",
                                     color: "#FFFFFF",
                                 }}
@@ -871,7 +789,7 @@ export function DashboardScreen({
                                         height: "7px",
                                         borderRadius: "999px",
                                         backgroundColor: redColor,
-                                        boxShadow: `0 0 8px ${redColor}`,
+                                        boxShadow: `0 0 10px ${redColor}`,
                                     }}
                                 />
                                 Active
@@ -884,12 +802,12 @@ export function DashboardScreen({
                                 flexWrap: "wrap",
                                 alignItems: "baseline",
                                 gap: "8px",
-                                marginBottom: "14px",
+                                marginBottom: "15px",
                             }}
                         >
                             <span
                                 style={{
-                                    fontSize: "21px",
+                                    fontSize: "22px",
                                     fontWeight: 800,
                                     letterSpacing: "-0.02em",
                                     color: "#FFFFFF",
@@ -899,7 +817,7 @@ export function DashboardScreen({
                             </span>
                             <span
                                 style={{
-                                    color: "rgba(255, 255, 255, 0.32)",
+                                    color: "rgba(255, 255, 255, 0.28)",
                                     fontSize: "15px",
                                     fontWeight: 400,
                                 }}
@@ -910,7 +828,7 @@ export function DashboardScreen({
                                 style={{
                                     fontSize: "13.5px",
                                     fontWeight: 700,
-                                    color: "#84B6FF",
+                                    color: "#8BB9FF",
                                 }}
                             >
                                 {user.role}
@@ -942,7 +860,7 @@ export function DashboardScreen({
                                             "rgba(255, 255, 255, 0.11)",
                                         border:
                                             "1px solid rgba(255, 255, 255, 0.16)",
-                                        fontSize: "12px",
+                                        fontSize: "11.5px",
                                         fontWeight: 800,
                                         letterSpacing: "0.1em",
                                         textTransform: "uppercase",
@@ -964,94 +882,62 @@ export function DashboardScreen({
                                         border:
                                             user.permissionGroup ===
                                             "leadership"
-                                                ? "1px solid rgba(250, 52, 37, 0.5)"
-                                                : "1px solid rgba(132, 182, 255, 0.35)",
+                                                ? "1px solid rgba(250, 52, 37, 0.48)"
+                                                : "1px solid rgba(139, 185, 255, 0.35)",
                                         fontSize: "11px",
                                         fontWeight: 700,
-                                        letterSpacing: "0.05em",
+                                        letterSpacing: "0.04em",
                                         color:
                                             user.permissionGroup ===
                                             "leadership"
-                                                ? "#FF857C"
-                                                : "#B5D2FF",
+                                                ? "#FF8F86"
+                                                : "#C2DAFF",
                                     }}
                                 >
                                     {GROUP_LABELS[user.permissionGroup]}
                                 </span>
                             </div>
 
-                            <span
+                            {user.permissionGroup === "leadership" && (
+                                <button
+                                    type="button"
+                                    disabled={pushBusy}
+                                    onClick={handleEnablePush}
+                                    style={{
+                                        padding: "5px 10px",
+                                        borderRadius: "8px",
+                                        border:
+                                            "1px solid rgba(255, 255, 255, 0.2)",
+                                        backgroundColor:
+                                            "rgba(255, 255, 255, 0.08)",
+                                        color: "#FFFFFF",
+                                        fontSize: "11px",
+                                        fontWeight: 700,
+                                        cursor: pushBusy
+                                            ? "not-allowed"
+                                            : "pointer",
+                                    }}
+                                >
+                                    {pushBusy ? "Enabling..." : "Push Alerts"}
+                                </button>
+                            )}
+                        </div>
+
+                        {pushStatusMsg && (
+                            <div
                                 style={{
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    color: "rgba(255, 255, 255, 0.65)",
+                                    marginTop: "10px",
+                                    fontSize: "11.5px",
+                                    color: "#C2DAFF",
                                 }}
                             >
-                                {totalActionsCount} tools
-                            </span>
-                        </div>
+                                {pushStatusMsg}
+                            </div>
+                        )}
                     </div>
                 </section>
 
-                {/* Leadership Push Notifications Card */}
-                {user.permissionGroup === "leadership" && (
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "12px",
-                            padding: "12px 16px",
-                            marginBottom: "14px",
-                            borderRadius: "14px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(3, 78, 175, 0.2)",
-                            boxShadow: "0 4px 14px rgba(0, 2, 1, 0.04)",
-                            flexWrap: "wrap",
-                        }}
-                    >
-                        <div>
-                            <div
-                                style={{
-                                    fontSize: "13px",
-                                    fontWeight: 800,
-                                    color: blackColor,
-                                }}
-                            >
-                                Review Alerts (iPhone & Android)
-                            </div>
-                            <div
-                                style={{
-                                    fontSize: "11px",
-                                    color: greyColor,
-                                }}
-                            >
-                                {pushStatusMsg ||
-                                    "Get notified when new articles or content arrive for review."}
-                            </div>
-                        </div>
-
-                        <button
-                            type="button"
-                            disabled={pushBusy}
-                            onClick={handleEnablePush}
-                            style={{
-                                padding: "8px 13px",
-                                borderRadius: "9px",
-                                border: "none",
-                                backgroundColor: blueColor,
-                                color: "#FFFFFF",
-                                fontSize: "12px",
-                                fontWeight: 700,
-                                cursor: pushBusy ? "not-allowed" : "pointer",
-                            }}
-                        >
-                            {pushBusy ? "Enabling..." : "Enable Alerts"}
-                        </button>
-                    </div>
-                )}
-
-                {/* Segmented Switcher (No Dropdowns — Clean 2-Tab Split for 2 Sections) */}
+                {/* Segmented Pill Switcher (Clean Full Labels, No Dropdowns) */}
                 <div
                     role="tablist"
                     aria-label="Portal sections"
@@ -1061,7 +947,7 @@ export function DashboardScreen({
                         gap: "6px",
                         padding: "5px",
                         marginBottom: "14px",
-                        borderRadius: "15px",
+                        borderRadius: "16px",
                         backgroundColor: "#FFFFFF",
                         border: "1px solid rgba(0, 2, 1, 0.09)",
                         boxShadow: "0 6px 18px rgba(0, 2, 1, 0.05)",
@@ -1078,19 +964,17 @@ export function DashboardScreen({
                                 onClick={() => setActiveTab(tab.key)}
                                 style={{
                                     position: "relative",
-                                    padding: "10px 8px",
-                                    borderRadius: "11px",
+                                    padding: isTwoSectionUser
+                                        ? "11px 12px"
+                                        : "10px 8px",
+                                    borderRadius: "12px",
                                     border: "none",
                                     background: isSelected
-                                        ? `linear-gradient(135deg, ${blackColor} 0%, #121A2D 100%)`
+                                        ? `linear-gradient(135deg, ${blackColor} 0%, #131B2E 100%)`
                                         : "transparent",
                                     color: isSelected ? "#FFFFFF" : blackColor,
                                     cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: "6px",
-                                    fontSize: "12px",
+                                    fontSize: "12.5px",
                                     fontWeight: 800,
                                     letterSpacing: "-0.01em",
                                     overflow: "hidden",
@@ -1099,29 +983,7 @@ export function DashboardScreen({
                                         : "none",
                                 }}
                             >
-                                <span
-                                    style={{
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {tab.label}
-                                </span>
-                                <span
-                                    style={{
-                                        fontSize: "10px",
-                                        fontWeight: 800,
-                                        padding: "1px 6px",
-                                        borderRadius: "999px",
-                                        backgroundColor: isSelected
-                                            ? "rgba(255, 255, 255, 0.16)"
-                                            : "rgba(0, 2, 1, 0.06)",
-                                        color: isSelected ? "#FFFFFF" : greyColor,
-                                    }}
-                                >
-                                    {tab.count}
-                                </span>
+                                <span>{tab.label}</span>
                                 {isSelected && (
                                     <span
                                         style={{
@@ -1139,7 +1001,7 @@ export function DashboardScreen({
                     })}
                 </div>
 
-                {/* Active Section Cards */}
+                {/* Section Cards */}
                 <div
                     style={{
                         display: "flex",
@@ -1156,12 +1018,12 @@ export function DashboardScreen({
                             <section
                                 key={section.category}
                                 style={{
-                                    borderRadius: "18px",
+                                    borderRadius: "20px",
                                     backgroundColor: "#FFFFFF",
                                     border: isLeadershipSection
-                                        ? "1px solid rgba(250, 52, 37, 0.25)"
+                                        ? "1px solid rgba(250, 52, 37, 0.24)"
                                         : "1px solid rgba(0, 2, 1, 0.08)",
-                                    boxShadow: "0 8px 22px rgba(0, 2, 1, 0.04)",
+                                    boxShadow: "0 10px 24px rgba(0, 2, 1, 0.04)",
                                     overflow: "hidden",
                                 }}
                             >
@@ -1175,84 +1037,52 @@ export function DashboardScreen({
                                     }}
                                 />
 
-                                <div style={{ padding: "15px 16px 17px" }}>
+                                <div style={{ padding: "16px 16px 18px" }}>
                                     <div
                                         style={{
                                             display: "flex",
                                             alignItems: "center",
-                                            justifyContent: "space-between",
                                             gap: "10px",
-                                            marginBottom: "12px",
+                                            marginBottom: "13px",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: "10px",
-                                                minWidth: 0,
-                                            }}
-                                        >
-                                            <span
-                                                style={{
-                                                    width: "8px",
-                                                    height: "8px",
-                                                    borderRadius: "2px",
-                                                    transform: "rotate(45deg)",
-                                                    backgroundColor:
-                                                        isLeadershipSection
-                                                            ? redColor
-                                                            : blueColor,
-                                                    flexShrink: 0,
-                                                }}
-                                            />
-                                            <div style={{ minWidth: 0 }}>
-                                                <h2
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "14px",
-                                                        fontWeight: 800,
-                                                        letterSpacing: "-0.01em",
-                                                        color: isLeadershipSection
-                                                            ? redColor
-                                                            : blackColor,
-                                                    }}
-                                                >
-                                                    {section.label}
-                                                </h2>
-                                                <div
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        color: greyColor,
-                                                        whiteSpace: "nowrap",
-                                                        overflow: "hidden",
-                                                        textOverflow:
-                                                            "ellipsis",
-                                                    }}
-                                                >
-                                                    {section.description}
-                                                </div>
-                                            </div>
-                                        </div>
-
                                         <span
                                             style={{
-                                                fontSize: "10px",
-                                                fontWeight: 800,
-                                                padding: "3px 8px",
-                                                borderRadius: "999px",
+                                                width: "8px",
+                                                height: "8px",
+                                                borderRadius: "2px",
+                                                transform: "rotate(45deg)",
                                                 backgroundColor:
                                                     isLeadershipSection
-                                                        ? "rgba(250, 52, 37, 0.1)"
-                                                        : "rgba(3, 78, 175, 0.08)",
-                                                color: isLeadershipSection
-                                                    ? redColor
-                                                    : blueColor,
+                                                        ? redColor
+                                                        : blueColor,
                                                 flexShrink: 0,
                                             }}
-                                        >
-                                            {section.items.length}
-                                        </span>
+                                        />
+                                        <div style={{ minWidth: 0 }}>
+                                            <h2
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "14.5px",
+                                                    fontWeight: 800,
+                                                    letterSpacing: "-0.01em",
+                                                    color: isLeadershipSection
+                                                        ? redColor
+                                                        : blackColor,
+                                                }}
+                                            >
+                                                {section.label}
+                                            </h2>
+                                            <div
+                                                style={{
+                                                    fontSize: "11.5px",
+                                                    color: greyColor,
+                                                    marginTop: "1px",
+                                                }}
+                                            >
+                                                {section.description}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div
@@ -1301,7 +1131,7 @@ export function DashboardScreen({
                                                             : undefined,
                                                         textAlign: "left",
                                                         padding: "15px 14px",
-                                                        borderRadius: "14px",
+                                                        borderRadius: "15px",
                                                         border: isDarkFeatured
                                                             ? `1px solid ${
                                                                   isLeadershipSection
@@ -1309,7 +1139,7 @@ export function DashboardScreen({
                                                                       : "rgba(255, 255, 255, 0.12)"
                                                               }`
                                                             : isLeadershipSection
-                                                              ? "1px solid rgba(250, 52, 37, 0.24)"
+                                                              ? "1px solid rgba(250, 52, 37, 0.22)"
                                                               : "1px solid rgba(0, 2, 1, 0.08)",
                                                         background: isDarkFeatured
                                                             ? `linear-gradient(135deg, ${blackColor} 0%, #141B2D 100%)`
@@ -1369,7 +1199,7 @@ export function DashboardScreen({
                                                                     "uppercase",
                                                                 color:
                                                                     isDarkFeatured
-                                                                        ? "rgba(255, 255, 255, 0.72)"
+                                                                        ? "rgba(255, 255, 255, 0.75)"
                                                                         : isLeadershipSection
                                                                           ? redColor
                                                                           : greyColor,
@@ -1406,7 +1236,7 @@ export function DashboardScreen({
                                                                     "12px",
                                                                 color:
                                                                     isDarkFeatured
-                                                                        ? "rgba(255, 255, 255, 0.68)"
+                                                                        ? "rgba(255, 255, 255, 0.7)"
                                                                         : greyColor,
                                                                 lineHeight: 1.35,
                                                             }}
@@ -1721,16 +1551,43 @@ export function DashboardScreen({
                             {selectedAction.details}
                         </p>
 
+                        {selectedAction.targetView && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const view = selectedAction.targetView!
+                                    setSelectedAction(null)
+                                    setActiveView(view)
+                                }}
+                                style={{
+                                    width: "100%",
+                                    padding: "13px 16px",
+                                    borderRadius: "11px",
+                                    border: "none",
+                                    background: `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`,
+                                    color: "#FFFFFF",
+                                    fontSize: "13px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.05em",
+                                    textTransform: "uppercase",
+                                    cursor: "pointer",
+                                    marginBottom: "10px",
+                                }}
+                            >
+                                Open Section
+                            </button>
+                        )}
+
                         <button
                             type="button"
                             onClick={() => setSelectedAction(null)}
                             style={{
                                 width: "100%",
-                                padding: "13px 16px",
+                                padding: "12px 16px",
                                 borderRadius: "11px",
-                                border: "none",
-                                backgroundColor: blackColor,
-                                color: "#FFFFFF",
+                                border: "1px solid rgba(0, 2, 1, 0.14)",
+                                backgroundColor: "#FFFFFF",
+                                color: blackColor,
                                 fontSize: "13px",
                                 fontWeight: 700,
                                 letterSpacing: "0.05em",
