@@ -6,6 +6,7 @@ import { OutreachHubView, type OutreachPageMode } from "./OutreachHubView"
 import { subscribeDeviceToPush } from "../lib/pushNotifications"
 import { TechSystemsView } from "./TechSystemsView"
 import { HrLegalVaultView } from "./HrLegalVaultView"
+import { UploadAssetsView } from "./UploadAssetsView"
 
 export type PermissionGroup =
     | "journalist"
@@ -163,7 +164,7 @@ const ALL_ACTIONS: ActionItem[] = [
         accent: "blue",
         status: "Dropzone Ready",
         details:
-            "Upload raw video clips, custom graphics, and finished edits for approval and social scheduling.",
+            "Share Google Drive, iCloud, Canva, CapCut & editing links for approval and social scheduling.",
     },
     {
         id: "social-hooks",
@@ -350,6 +351,7 @@ export function DashboardScreen({
         | "outreach-handoffs"
         | "tech-systems"
         | "hr-legal"
+        | "upload-assets"
         | null
     >(null)
     const [selectedAction, setSelectedAction] = useState<ActionItem | null>(
@@ -519,6 +521,33 @@ export function DashboardScreen({
                     greyColor={greyColor}
                     blackColor={blackColor}
                 />
+            </div>
+        )
+    }
+
+    if (activeView === "upload-assets") {
+        return (
+            <div
+                style={{
+                    minHeight: "100dvh",
+                    background:
+                        "radial-gradient(circle at top right, rgba(3, 78, 175, 0.08), transparent 42%), radial-gradient(circle at top left, rgba(250, 52, 37, 0.07), transparent 38%), #F2F4F8",
+                    color: blackColor,
+                    fontFamily:
+                        "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                }}
+            >
+                <div
+                    style={{
+                        maxWidth: "680px",
+                        width: "100%",
+                        margin: "0 auto",
+                        padding: "18px 18px 28px",
+                        boxSizing: "border-box",
+                    }}
+                >
+                    <UploadAssetsView onBack={() => setActiveView(null)} />
+                </div>
             </div>
         )
     }
@@ -1303,6 +1332,13 @@ export function DashboardScreen({
                                                                 ) {
                                                                     setActiveView(
                                                                         "hr-legal"
+                                                                    )
+                                                                } else if (
+                                                                    action.id ===
+                                                                    "upload-assets"
+                                                                ) {
+                                                                    setActiveView(
+                                                                        "upload-assets"
                                                                     )
                                                                 } else if (
                                                                     action.id ===
