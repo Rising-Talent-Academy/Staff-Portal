@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { StaffProfile } from "./DashboardScreen"
 
-export type OutreachPageMode = "tracker" | "templates" | "handoffs"
+export type OutreachPageMode = "tracker" | "templates"
 
 interface OutreachHubViewProps {
     user: StaffProfile
@@ -36,22 +36,6 @@ interface OutreachLead {
     created_at?: string
 }
 
-type HandoffDept = "journalist" | "creator" | "both" | "leadership"
-type HandoffStatus = "open" | "in_progress" | "completed"
-
-interface DepartmentHandoff {
-    id: string
-    title: string
-    target_department: HandoffDept | string
-    brief: string
-    status: HandoffStatus | string
-    created_by_rta_id: string
-    created_by_name: string
-    claimed_by_rta_id: string | null
-    claimed_by_name: string | null
-    created_at?: string
-}
-
 const CATEGORY_OPTIONS: { value: LeadCategory; label: string }[] = [
     { value: "podcast_guest", label: "Rising Talent Talkers (Driver)" },
     { value: "team", label: "Team / Academy" },
@@ -64,13 +48,6 @@ const STATUS_OPTIONS: { value: LeadStatus; label: string }[] = [
     { value: "in_talks", label: "In Talks" },
     { value: "confirmed", label: "Confirmed" },
     { value: "declined", label: "Declined / No Reply" },
-]
-
-const DEPT_OPTIONS: { value: HandoffDept; label: string }[] = [
-    { value: "journalist", label: "Journalism Team" },
-    { value: "creator", label: "Content Creators" },
-    { value: "both", label: "Journalism & Creators" },
-    { value: "leadership", label: "Leadership & Admin" },
 ]
 
 const OUTREACH_TEMPLATES = [
@@ -103,7 +80,6 @@ const OUTREACH_TEMPLATES = [
 const PAGE_TITLES: Record<OutreachPageMode, string> = {
     tracker: "Outreach & Podcast Tracker",
     templates: "Outreach Templates & Bio",
-    handoffs: "Inter-Dept Handoffs",
 }
 
 function categoryLabel(cat: string): string {
@@ -117,8 +93,15 @@ function statusLabel(status: string): string {
     return STATUS_OPTIONS.find((s) => s.value === status)?.label || status
 }
 
-function deptLabel(dept: string): string {
-    return DEPT_OPTIONS.find((d) => d.value === dept)?.label || dept
+function dedupeById<T extends { id: string }>(rows: T[]): T[] {
+    const seen = new Set<string>()
+    const unique: T[] = []
+    for (const row of rows) {
+        if (!row?.id || seen.has(row.id)) continue
+        seen.add(row.id)
+        unique.push(row)
+    }
+    return unique
 }
 
 export function OutreachHubView({
@@ -152,15 +135,7 @@ export function OutreachHubView({
     // Templates copy state (only shown on templates page)
     const [copiedId, setCopiedId] = useState<string | null>(null)
 
-    // Handoffs state (only fetched on handoffs page)
-    const [handoffs, setHandoffs] = useState<DepartmentHandoff[]>([])
-    const [loadingHandoffs, setLoadingHandoffs] = useState(mode === "handoffs")
-    const [handoffTitle, setHandoffTitle] = useState("")
-    const [handoffDept, setHandoffDept] = useState<HandoffDept>("journalist")
-    const [handoffBrief, setHandoffBrief] = useState("")
-    const [savingHandoff, setSavingHandoff] = useState(false)
-
-    const loadLeads = async () => {
+    const loadLeads = async (isCancelled?: () => boolean) => {
         setLoadingLeads(true)
         setErrorMsg("")
         const { data, error } = await supabase
@@ -168,54 +143,70 @@ export function OutreachHubView({
             .select("*")
             .order("created_at", { ascending: false })
 
+        if (isCancelled?.()) return
+
         if (error) {
             setErrorMsg(error.message)
         } else {
-            setLeads((data as OutreachLead[]) || [])
+            setLeads(dedupeById((data as OutreachLead[]) || []))
         }
         setLoadingLeads(false)
     }
 
-    const loadHandoffs = async () => {
-        setLoadingHandoffs(true)
-        setErrorMsg("")
-        const { data, error } = await supabase
-            .from("department_handoffs")
-            .select("*")
-            .order("created_at", { ascending: false })
-
-        if (error) {
-            setErrorMsg(error.message)
-        } else {
-            setHandoffs((data as DepartmentHandoff[]) || [])
-        }
-        setLoadingHandoffs(false)
-    }
-
     useEffect(() => {
+        let cancelled = false
+        setErrorMsg("")
+        setStatusMsg("")
+
         if (mode === "tracker") {
-            loadLeads()
-        } else if (mode === "handoffs") {
-            loadHandoffs()
+            loadLeads(() => cancelled)
+        }
+
+        return () => {
+            cancelled = true
         }
     }, [mode])
 
     const handleAddLead = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (savingLead) return
+
         setErrorMsg("")
         setStatusMsg("")
 
-        if (!contactName.trim()) {
+        const cleanName = contactName.trim()
+        const cleanHandle = handleOrEmail.trim()
+
+        if (!cleanName) {
             setErrorMsg("Please enter a driver, team, or brand name.")
+            return
+        }
+
+        const duplicateLead = leads.find((existing) => {
+            const sameName =
+                existing.contact_name.trim().toLowerCase() ===
+                cleanName.toLowerCase()
+            const sameHandle =
+                Boolean(cleanHandle) &&
+                Boolean(existing.handle_or_email) &&
+                existing.handle_or_email!.trim().toLowerCase() ===
+                    cleanHandle.toLowerCase()
+            return sameName || sameHandle
+        })
+
+        if (duplicateLead) {
+            setErrorMsg(
+                `"${duplicateLead.contact_name}" is already in the tracker (claimed by ${duplicateLead.owner_rta_id} • ${statusLabel(duplicateLead.status)}). Update their status instead of adding a duplicate.`
+            )
             return
         }
 
         setSavingLead(true)
         const { error } = await supabase.from("outreach_leads").insert({
-            contact_name: contactName.trim(),
+            contact_name: cleanName,
             category,
             series_or_org: seriesOrOrg.trim() || null,
-            handle_or_email: handleOrEmail.trim() || null,
+            handle_or_email: cleanHandle || null,
             status: leadStatus,
             owner_rta_id: user.rtaId,
             owner_name: user.name || user.rtaId,
@@ -227,7 +218,7 @@ export function OutreachHubView({
             setErrorMsg(error.message)
         } else {
             setStatusMsg(
-                `Logged ${contactName.trim()} under ${user.rtaId} so nobody double-contacts them.`
+                `Logged ${cleanName} under ${user.rtaId} so nobody double-contacts them.`
             )
             setContactName("")
             setSeriesOrOrg("")
@@ -283,62 +274,6 @@ export function OutreachHubView({
             setTimeout(() => setCopiedId(null), 2200)
         } catch {
             setErrorMsg("Could not copy automatically—select and copy manually.")
-        }
-    }
-
-    const handleCreateHandoff = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setErrorMsg("")
-        setStatusMsg("")
-
-        if (!handoffTitle.trim() || !handoffBrief.trim()) {
-            setErrorMsg("Please fill in both the Handoff Title and Brief.")
-            return
-        }
-
-        setSavingHandoff(true)
-        const { error } = await supabase.from("department_handoffs").insert({
-            title: handoffTitle.trim(),
-            target_department: handoffDept,
-            brief: handoffBrief.trim(),
-            status: "open",
-            created_by_rta_id: user.rtaId,
-            created_by_name: user.name || user.rtaId,
-        })
-
-        if (error) {
-            setErrorMsg(error.message)
-        } else {
-            setStatusMsg(
-                `Sent handoff "${handoffTitle.trim()}" to ${deptLabel(handoffDept)}.`
-            )
-            setHandoffTitle("")
-            setHandoffBrief("")
-            await loadHandoffs()
-        }
-        setSavingHandoff(false)
-    }
-
-    const handleClaimOrCompleteHandoff = async (
-        item: DepartmentHandoff,
-        nextStatus: HandoffStatus
-    ) => {
-        setErrorMsg("")
-        const payload: Record<string, unknown> = { status: nextStatus }
-        if (nextStatus === "in_progress") {
-            payload.claimed_by_rta_id = user.rtaId
-            payload.claimed_by_name = user.name || user.rtaId
-        }
-
-        const { error } = await supabase
-            .from("department_handoffs")
-            .update(payload)
-            .eq("id", item.id)
-
-        if (error) {
-            setErrorMsg(error.message)
-        } else {
-            await loadHandoffs()
         }
     }
 
@@ -487,7 +422,7 @@ export function OutreachHubView({
                 </div>
             )}
 
-            {/* DEDICATED PAGE 1: OUTREACH & PODCAST TRACKER */}
+            {/* PAGE 1: OUTREACH & PODCAST TRACKER */}
             {mode === "tracker" && (
                 <>
                     <section
@@ -748,9 +683,9 @@ export function OutreachHubView({
                                     gap: "10px",
                                 }}
                             >
-                                {filteredLeads.map((lead) => (
+                                {filteredLeads.map((lead, idx) => (
                                     <div
-                                        key={lead.id}
+                                        key={lead.id || `lead-${idx}`}
                                         style={{
                                             padding: "14px",
                                             borderRadius: "14px",
@@ -914,7 +849,7 @@ export function OutreachHubView({
                 </>
             )}
 
-            {/* DEDICATED PAGE 2: TEMPLATES & BIO */}
+            {/* PAGE 2: TEMPLATES & BIO */}
             {mode === "templates" && (
                 <div
                     style={{
@@ -1011,328 +946,6 @@ export function OutreachHubView({
                         )
                     })}
                 </div>
-            )}
-
-            {/* DEDICATED PAGE 3: INTER-DEPARTMENT HANDOFFS */}
-            {mode === "handoffs" && (
-                <>
-                    <section
-                        style={{
-                            borderRadius: "18px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.08)",
-                            boxShadow: "0 8px 22px rgba(0, 2, 1, 0.04)",
-                            padding: "18px",
-                            marginBottom: "18px",
-                        }}
-                    >
-                        <h2
-                            style={{
-                                margin: "0 0 12px",
-                                fontSize: "15px",
-                                fontWeight: 800,
-                                color: blackColor,
-                            }}
-                        >
-                            Send Inter-Department Brief / Handoff
-                        </h2>
-
-                        <form onSubmit={handleCreateHandoff}>
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns:
-                                        "repeat(auto-fit, minmax(200px, 1fr))",
-                                    gap: "10px",
-                                    marginBottom: "10px",
-                                }}
-                            >
-                                <div>
-                                    <label style={labelStyle}>
-                                        Task / Collab Title *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="e.g. Podcast Promo Graphic for Ep 12 Guest"
-                                        value={handoffTitle}
-                                        onChange={(e) =>
-                                            setHandoffTitle(e.target.value)
-                                        }
-                                        style={inputStyle}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={labelStyle}>
-                                        Send To Department
-                                    </label>
-                                    <select
-                                        value={handoffDept}
-                                        onChange={(e) =>
-                                            setHandoffDept(
-                                                e.target.value as HandoffDept
-                                            )
-                                        }
-                                        style={inputStyle}
-                                    >
-                                        {DEPT_OPTIONS.map((opt) => (
-                                            <option
-                                                key={opt.value}
-                                                value={opt.value}
-                                            >
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style={{ marginBottom: "12px" }}>
-                                <label style={labelStyle}>
-                                    Brief & Key Details *
-                                </label>
-                                <textarea
-                                    rows={3}
-                                    required
-                                    placeholder="Include driver/brand details, recording or launch date, and what Journalism / Creators / Leadership need to do..."
-                                    value={handoffBrief}
-                                    onChange={(e) =>
-                                        setHandoffBrief(e.target.value)
-                                    }
-                                    style={{
-                                        ...inputStyle,
-                                        fontFamily: "inherit",
-                                        resize: "vertical",
-                                    }}
-                                />
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={savingHandoff}
-                                style={{
-                                    width: "100%",
-                                    padding: "11px 16px",
-                                    borderRadius: "11px",
-                                    border: "none",
-                                    backgroundColor: redColor,
-                                    color: "#FFFFFF",
-                                    fontSize: "13px",
-                                    fontWeight: 700,
-                                    cursor: savingHandoff
-                                        ? "not-allowed"
-                                        : "pointer",
-                                }}
-                            >
-                                {savingHandoff
-                                    ? "Sending Handoff..."
-                                    : "Post Department Handoff"}
-                            </button>
-                        </form>
-                    </section>
-
-                    <section
-                        style={{
-                            borderRadius: "18px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.08)",
-                            boxShadow: "0 8px 22px rgba(0, 2, 1, 0.04)",
-                            padding: "18px",
-                        }}
-                    >
-                        <h2
-                            style={{
-                                margin: "0 0 12px",
-                                fontSize: "15px",
-                                fontWeight: 800,
-                                color: blackColor,
-                            }}
-                        >
-                            Active Department Board ({handoffs.length})
-                        </h2>
-
-                        {loadingHandoffs ? (
-                            <div
-                                style={{
-                                    textAlign: "center",
-                                    padding: "16px 0",
-                                    fontSize: "13px",
-                                    color: greyColor,
-                                }}
-                            >
-                                Loading handoffs...
-                            </div>
-                        ) : handoffs.length === 0 ? (
-                            <div
-                                style={{
-                                    textAlign: "center",
-                                    padding: "16px 0",
-                                    fontSize: "13px",
-                                    color: greyColor,
-                                }}
-                            >
-                                No department handoffs posted yet.
-                            </div>
-                        ) : (
-                            <div
-                                style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "10px",
-                                }}
-                            >
-                                {handoffs.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        style={{
-                                            padding: "14px",
-                                            borderRadius: "14px",
-                                            border:
-                                                "1px solid rgba(0, 2, 1, 0.08)",
-                                            backgroundColor: "#F9FAFC",
-                                            opacity:
-                                                item.status === "completed"
-                                                    ? 0.65
-                                                    : 1,
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                alignItems: "flex-start",
-                                                gap: "10px",
-                                                flexWrap: "wrap",
-                                            }}
-                                        >
-                                            <div style={{ flex: 1 }}>
-                                                <div
-                                                    style={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: "8px",
-                                                        flexWrap: "wrap",
-                                                        marginBottom: "4px",
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            fontSize: "14px",
-                                                            fontWeight: 800,
-                                                            color: blackColor,
-                                                        }}
-                                                    >
-                                                        {item.title}
-                                                    </span>
-                                                    <span
-                                                        style={{
-                                                            padding: "2px 8px",
-                                                            borderRadius: "6px",
-                                                            backgroundColor:
-                                                                "rgba(3, 78, 175, 0.12)",
-                                                            color: blueColor,
-                                                            fontSize: "11px",
-                                                            fontWeight: 700,
-                                                        }}
-                                                    >
-                                                        To:{" "}
-                                                        {deptLabel(
-                                                            item.target_department
-                                                        )}
-                                                    </span>
-                                                </div>
-
-                                                <div
-                                                    style={{
-                                                        fontSize: "12px",
-                                                        color: blackColor,
-                                                        marginBottom: "6px",
-                                                        lineHeight: 1.45,
-                                                    }}
-                                                >
-                                                    {item.brief}
-                                                </div>
-
-                                                <div
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        color: greyColor,
-                                                    }}
-                                                >
-                                                    From:{" "}
-                                                    {item.created_by_rta_id}
-                                                    {item.claimed_by_rta_id
-                                                        ? ` • Picked up by ${item.claimed_by_rta_id}`
-                                                        : ""}
-                                                </div>
-                                            </div>
-
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    gap: "6px",
-                                                }}
-                                            >
-                                                {item.status === "open" && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleClaimOrCompleteHandoff(
-                                                                item,
-                                                                "in_progress"
-                                                            )
-                                                        }
-                                                        style={{
-                                                            padding: "6px 11px",
-                                                            borderRadius: "8px",
-                                                            border: "none",
-                                                            backgroundColor:
-                                                                blueColor,
-                                                            color: "#FFFFFF",
-                                                            fontSize: "11px",
-                                                            fontWeight: 700,
-                                                            cursor: "pointer",
-                                                        }}
-                                                    >
-                                                        Pick Up
-                                                    </button>
-                                                )}
-
-                                                {item.status !==
-                                                    "completed" && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleClaimOrCompleteHandoff(
-                                                                item,
-                                                                "completed"
-                                                            )
-                                                        }
-                                                        style={{
-                                                            padding: "6px 11px",
-                                                            borderRadius: "8px",
-                                                            border:
-                                                                "1px solid rgba(0, 2, 1, 0.15)",
-                                                            backgroundColor:
-                                                                "#FFFFFF",
-                                                            color: blackColor,
-                                                            fontSize: "11px",
-                                                            fontWeight: 700,
-                                                            cursor: "pointer",
-                                                        }}
-                                                    >
-                                                        Mark Done
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </section>
-                </>
             )}
         </div>
     )
