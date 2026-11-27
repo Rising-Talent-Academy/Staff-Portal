@@ -7,7 +7,6 @@ import { subscribeDeviceToPush } from "../lib/pushNotifications"
 import { TechSystemsView } from "./TechSystemsView"
 import { HrLegalVaultView } from "./HrLegalVaultView"
 import { UploadAssetsView } from "./UploadAssetsView"
-import { TeamBriefingsView } from "./TeamBriefingsView"
 
 export type PermissionGroup =
     | "journalist"
@@ -48,19 +47,18 @@ interface ActionItem {
     title: string
     subtitle: string
     category: ActionCategory
-    accent: "red" | "blue" | "black"
+    accent: "red" | "blue" | "gradient"
     status: string
     details: string
-    featured?: boolean
     targetView?: PortalView
 }
 
 interface DepartmentPage {
+    code: string
     category: ActionCategory
     title: string
-    badge: string
+    subtitle: string
     description: string
-    accentType: "brand" | "journalist" | "creator" | "outreach" | "leadership"
     items: ActionItem[]
 }
 
@@ -81,9 +79,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Team Briefings",
         subtitle: "Notices & weekly priorities",
         category: "core",
-        accent: "red",
-        status: "Pinned Update",
-        featured: true,
+        accent: "gradient",
+        status: "Pinned",
         details:
             "Read leadership announcements, weekly campaign priorities, and internal operational updates.",
     },
@@ -93,7 +90,7 @@ const ALL_ACTIONS: ActionItem[] = [
         subtitle: "Collab briefs & cross-team tasks",
         category: "core",
         accent: "blue",
-        status: "Live Board",
+        status: "Live",
         targetView: "outreach-handoffs",
         details:
             "Pick up and complete cross-department requests from Outreach & Comms, Journalism, Creators, and Leadership.",
@@ -103,7 +100,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Brand & Media Kit",
         subtitle: "Logos, colours & style rules",
         category: "core",
-        accent: "black",
+        accent: "red",
         status: "Current",
         details:
             "Official Rising Talent Academy brand palette (#fa3425, #000201, #034eaf, #696969), logo usage, and social styling rules.",
@@ -114,7 +111,7 @@ const ALL_ACTIONS: ActionItem[] = [
         subtitle: "Staff, roles & contacts",
         category: "core",
         accent: "blue",
-        status: "Active Roster",
+        status: "Roster",
         targetView: "directory",
         details:
             "View key Rising Talent Academy contacts and raise a ticket inside the portal.",
@@ -124,7 +121,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "My Profile & Docs",
         subtitle: "RTA ID, agreements & policies",
         category: "core",
-        accent: "black",
+        accent: "gradient",
         status: "Verified",
         details:
             "Review your assigned RTA ID details, signed agreements, and core portal guidelines.",
@@ -136,9 +133,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Article Queue",
         subtitle: "Your articles & current status",
         category: "journalist",
-        accent: "red",
+        accent: "gradient",
         status: "Open",
-        featured: true,
         targetView: "queue",
         details:
             "View your submitted articles and check their current editorial status.",
@@ -148,8 +144,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Submit Article",
         subtitle: "Send in a new article",
         category: "journalist",
-        accent: "blue",
-        status: "Editorial Desk",
+        accent: "red",
+        status: "Editorial",
         targetView: "submit",
         details:
             "Submit a new article with title, description, photo, text, and credits.",
@@ -159,7 +155,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Press & Fact-Check",
         subtitle: "Driver stats & series notes",
         category: "journalist",
-        accent: "black",
+        accent: "blue",
         status: "Reference",
         details:
             "Access verified driver profiles, standings, and official press reference notes.",
@@ -171,9 +167,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Content Calendar",
         subtitle: "Reels, TikTok & Shorts slots",
         category: "creator",
-        accent: "red",
+        accent: "gradient",
         status: "Scheduled",
-        featured: true,
         details:
             "Check upcoming posting dates, campaign deadlines, and assigned short-form video slots.",
     },
@@ -183,7 +178,7 @@ const ALL_ACTIONS: ActionItem[] = [
         subtitle: "Clips, graphics & finished edits",
         category: "creator",
         accent: "blue",
-        status: "Dropzone Ready",
+        status: "Dropzone",
         targetView: "upload-assets",
         details:
             "Share Google Drive, iCloud, Canva, CapCut & editing links for approval and social scheduling.",
@@ -193,7 +188,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Social Trends & Hooks",
         subtitle: "Captions, audio & templates",
         category: "creator",
-        accent: "black",
+        accent: "red",
         status: "Updated",
         details:
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
@@ -205,9 +200,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Outreach & Podcast Tracker",
         subtitle: "Rising Talent Talkers & sponsors",
         category: "outreach",
-        accent: "red",
+        accent: "gradient",
         status: "Pipeline",
-        featured: true,
         targetView: "outreach-tracker",
         details:
             "Track drivers, teams, and brand partnerships for Rising Talent Talkers and RTA collaborations without double-contacting leads.",
@@ -228,7 +222,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Send Dept Handoff",
         subtitle: "Brief Journalism, Creators & Admin",
         category: "outreach",
-        accent: "black",
+        accent: "red",
         status: "Comms Desk",
         targetView: "outreach-handoffs",
         details:
@@ -241,9 +235,8 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Editorial & Content Approvals",
         subtitle: "Review & sign off submissions",
         category: "leadership",
-        accent: "red",
+        accent: "gradient",
         status: "Admin",
-        featured: true,
         targetView: "approvals",
         details:
             "Review pending articles and social media edits, leave editorial feedback, and approve items for release.",
@@ -264,7 +257,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "HR & Legal Vault",
         subtitle: "Agreements, onboarding & logs",
         category: "leadership",
-        accent: "black",
+        accent: "red",
         status: "Restricted",
         targetView: "hr-legal",
         details:
@@ -275,7 +268,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Tech & Systems Control",
         subtitle: "Website, domains & access",
         category: "leadership",
-        accent: "red",
+        accent: "gradient",
         status: "Restricted",
         targetView: "tech-systems",
         details:
@@ -284,54 +277,54 @@ const ALL_ACTIONS: ActionItem[] = [
 ]
 
 const GROUP_LABELS: Record<PermissionGroup, string> = {
-    journalist: "Journalist Access",
-    creator: "Content Creator Access",
-    both: "Journalist & Creator Access",
-    outreach: "Outreach & Comms Access",
-    leadership: "Leadership & Admin Access",
+    journalist: "Journalist",
+    creator: "Content Creator",
+    both: "Journalist & Creator",
+    outreach: "Outreach & Comms",
+    leadership: "Leadership & Admin",
 }
 
 const DEPARTMENT_META: {
+    code: string
     category: ActionCategory
     title: string
-    badge: string
+    subtitle: string
     description: string
-    accentType: DepartmentPage["accentType"]
 }[] = [
     {
+        code: "01",
         category: "core",
         title: "General",
-        badge: "All Staff",
-        description: "Briefings, handoffs, brand kit, roster & profile",
-        accentType: "brand",
+        subtitle: "Core Hub",
+        description: "Briefings, handoffs, brand kit, team roster & profile",
     },
     {
+        code: "02",
         category: "journalist",
         title: "Journalism",
-        badge: "Editorial",
-        description: "Article queue, copy submission & press notes",
-        accentType: "journalist",
+        subtitle: "Editorial Desk",
+        description: "Article queue, copy submission & press reference notes",
     },
     {
+        code: "03",
         category: "creator",
         title: "Content Creation",
-        badge: "Social & Video",
-        description: "Content calendar, asset uploads & hooks",
-        accentType: "creator",
+        subtitle: "Social & Video",
+        description: "Content schedule, asset dropzone & trending hooks",
     },
     {
+        code: "04",
         category: "outreach",
         title: "Outreach & Comms",
-        badge: "Partnerships",
-        description: "Podcast tracker, outreach scripts & handoffs",
-        accentType: "outreach",
+        subtitle: "Partnerships",
+        description: "Podcast & sponsor tracker, outreach scripts & handoffs",
     },
     {
+        code: "05",
         category: "leadership",
         title: "Leadership & Admin",
-        badge: "Restricted",
-        description: "Approvals, RTA IDs, HR/legal vault & systems",
-        accentType: "leadership",
+        subtitle: "Restricted Control",
+        description: "Approvals, RTA IDs, HR & legal vault, and systems",
     },
 ]
 
@@ -377,6 +370,9 @@ export function DashboardScreen({
     const [pushStatusMsg, setPushStatusMsg] = useState("")
     const [pushBusy, setPushBusy] = useState(false)
 
+    const signatureGradient = `linear-gradient(135deg, ${redColor} 0%, ${blueColor} 100%)`
+    const horizontalGradient = `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`
+
     const departments = getDepartmentPages(user.permissionGroup)
     const currentDepartment =
         departments.find((d) => d.category === activeDepartment) ?? null
@@ -413,31 +409,28 @@ export function DashboardScreen({
         setSelectedAction(action)
     }
 
-    const getAccentColor = (accent: ActionItem["accent"]) => {
+    const getAccentStyle = (
+        accent: ActionItem["accent"]
+    ): React.CSSProperties => {
+        if (accent === "gradient") {
+            return { background: horizontalGradient }
+        }
+        if (accent === "red") {
+            return { backgroundColor: redColor }
+        }
+        return { backgroundColor: blueColor }
+    }
+
+    const getAccentTextColor = (accent: ActionItem["accent"]): string => {
         if (accent === "red") return redColor
         if (accent === "blue") return blueColor
         return blackColor
     }
 
-    const getDepartmentStripe = (accentType: DepartmentPage["accentType"]) => {
-        if (accentType === "leadership") {
-            return `linear-gradient(90deg, ${redColor} 0%, ${blackColor} 100%)`
-        }
-        if (accentType === "journalist") {
-            return `linear-gradient(90deg, ${redColor} 0%, #9E1B12 100%)`
-        }
-        if (accentType === "creator") {
-            return `linear-gradient(90deg, ${blueColor} 0%, #022C66 100%)`
-        }
-        if (accentType === "outreach") {
-            return `linear-gradient(90deg, ${blueColor} 0%, ${redColor} 100%)`
-        }
-        return `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`
-    }
-
-    const pageBackdrop: React.CSSProperties = {
+    const canvasStyle: React.CSSProperties = {
         minHeight: "100dvh",
-        background: `radial-gradient(circle at 88% 4%, rgba(3, 78, 175, 0.13), transparent 40%), radial-gradient(circle at 12% 2%, rgba(250, 52, 37, 0.12), transparent 36%), #F3F5F9`,
+        backgroundColor: "#F6F7FA",
+        backgroundImage: `linear-gradient(180deg, rgba(250, 52, 37, 0.05) 0%, rgba(3, 78, 175, 0.04) 220px, rgba(246, 247, 250, 1) 420px)`,
         color: blackColor,
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }
@@ -445,7 +438,7 @@ export function DashboardScreen({
     // Active sub-views
     if (activeView === "directory") {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <TeamDirectoryView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -464,7 +457,7 @@ export function DashboardScreen({
         activeView === "approvals"
     ) {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <ArticlesView
                     user={user}
                     initialMode={activeView}
@@ -480,7 +473,7 @@ export function DashboardScreen({
 
     if (activeView === "role-manager") {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <RoleManagerView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -495,7 +488,7 @@ export function DashboardScreen({
 
     if (activeView === "tech-systems") {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <TechSystemsView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -510,7 +503,7 @@ export function DashboardScreen({
 
     if (activeView === "hr-legal") {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <HrLegalVaultView
                     user={user}
                     onBack={() => setActiveView(null)}
@@ -525,10 +518,10 @@ export function DashboardScreen({
 
     if (activeView === "upload-assets") {
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <div
                     style={{
-                        maxWidth: "680px",
+                        maxWidth: "640px",
                         width: "100%",
                         margin: "0 auto",
                         padding: "18px 16px 32px",
@@ -563,7 +556,7 @@ export function DashboardScreen({
                   : "tracker"
 
         return (
-            <div style={pageBackdrop}>
+            <div style={canvasStyle}>
                 <OutreachHubView
                     key={pageMode}
                     user={user}
@@ -578,45 +571,147 @@ export function DashboardScreen({
         )
     }
 
-    if (activeSubView === "briefings") {
-    return (
-        <div style={shellStyle}>
-            <TeamBriefingsView
-                user={user}
-                onBack={() => setActiveSubView(null)}
-                redColor={redColor}
-                blueColor={blueColor}
-                greyColor={greyColor}
-                blackColor={blackColor}
-            />
-        </div>
-    )
-}
+    const renderActionSheet = () => {
+        if (!selectedAction) return null
+        return (
+            <div
+                onClick={() => setSelectedAction(null)}
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    backgroundColor: "rgba(0, 2, 1, 0.62)",
+                    display: "flex",
+                    alignItems: "flex-end",
+                    justifyContent: "center",
+                    zIndex: 30,
+                }}
+            >
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        width: "100%",
+                        maxWidth: "520px",
+                        backgroundColor: "#FFFFFF",
+                        borderTopLeftRadius: "24px",
+                        borderTopRightRadius: "24px",
+                        overflow: "hidden",
+                        boxSizing: "border-box",
+                    }}
+                >
+                    <div
+                        style={{
+                            height: "4px",
+                            width: "100%",
+                            ...getAccentStyle(selectedAction.accent),
+                        }}
+                    />
 
-    // Dedicated Department Page (when a department card is opened)
+                    <div style={{ padding: "20px 22px 28px" }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "10px",
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: "11px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.12em",
+                                    textTransform: "uppercase",
+                                    color: getAccentTextColor(
+                                        selectedAction.accent
+                                    ),
+                                }}
+                            >
+                                {selectedAction.status}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedAction(null)}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    fontSize: "13px",
+                                    fontWeight: 700,
+                                    color: greyColor,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <h2
+                            style={{
+                                margin: "0 0 8px",
+                                fontSize: "20px",
+                                fontWeight: 800,
+                                letterSpacing: "-0.02em",
+                                color: blackColor,
+                            }}
+                        >
+                            {selectedAction.title}
+                        </h2>
+                        <p
+                            style={{
+                                margin: "0 0 20px",
+                                fontSize: "14px",
+                                lineHeight: 1.55,
+                                color: greyColor,
+                            }}
+                        >
+                            {selectedAction.details}
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedAction(null)}
+                            style={{
+                                width: "100%",
+                                padding: "13px 16px",
+                                borderRadius: "12px",
+                                border: "none",
+                                background: horizontalGradient,
+                                color: "#FFFFFF",
+                                fontSize: "12.5px",
+                                fontWeight: 800,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Dedicated Department Page
     if (currentDepartment) {
-        const isAdminDept = currentDepartment.category === "leadership"
-        const hasOddCount = currentDepartment.items.length % 2 === 1
-
         return (
             <div
                 style={{
-                    ...pageBackdrop,
+                    ...canvasStyle,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    padding: "16px 16px 30px",
+                    padding: "16px 16px 28px",
                     boxSizing: "border-box",
                 }}
             >
                 <div
                     style={{
-                        maxWidth: "680px",
+                        maxWidth: "640px",
                         width: "100%",
                         margin: "0 auto",
                     }}
                 >
-                    {/* Sub-page Top Bar */}
+                    {/* Top Navigation Row */}
                     <div
                         style={{
                             display: "flex",
@@ -632,53 +727,50 @@ export function DashboardScreen({
                             style={{
                                 display: "inline-flex",
                                 alignItems: "center",
-                                gap: "6px",
+                                gap: "8px",
                                 padding: "9px 14px",
-                                borderRadius: "11px",
-                                border: "1px solid rgba(0, 2, 1, 0.14)",
+                                borderRadius: "12px",
+                                border: "1px solid rgba(0, 2, 1, 0.12)",
                                 backgroundColor: "#FFFFFF",
                                 color: blackColor,
                                 fontSize: "12.5px",
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 cursor: "pointer",
-                                boxShadow: "0 4px 12px rgba(0, 2, 1, 0.05)",
                             }}
                         >
-                            <span>← Paddock Pass</span>
+                            <span>←</span>
+                            <span>Paddock Pass</span>
                         </button>
 
                         <span
                             style={{
                                 fontSize: "11px",
                                 fontWeight: 800,
-                                letterSpacing: "0.12em",
+                                letterSpacing: "0.14em",
                                 textTransform: "uppercase",
                                 color: greyColor,
                             }}
                         >
-                            {user.rtaId}
+                            DEPT {currentDepartment.code}
                         </span>
                     </div>
 
-                    {/* Department Header Banner */}
+                    {/* Department Page Header */}
                     <section
                         style={{
                             borderRadius: "20px",
-                            background: `linear-gradient(140deg, ${blackColor} 0%, #0D1424 60%, #071A38 100%)`,
+                            backgroundColor: blackColor,
                             color: "#FFFFFF",
                             overflow: "hidden",
                             marginBottom: "16px",
-                            boxShadow: "0 16px 32px rgba(0, 2, 1, 0.18)",
-                            border: "1px solid rgba(255, 255, 255, 0.08)",
+                            border: "1px solid rgba(0, 2, 1, 0.16)",
                         }}
                     >
                         <div
                             style={{
                                 height: "4px",
                                 width: "100%",
-                                background: getDepartmentStripe(
-                                    currentDepartment.accentType
-                                ),
+                                background: horizontalGradient,
                             }}
                         />
 
@@ -688,28 +780,27 @@ export function DashboardScreen({
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
-                                    gap: "8px",
                                     marginBottom: "6px",
                                 }}
                             >
                                 <span
                                     style={{
-                                        fontSize: "10px",
+                                        fontSize: "10.5px",
                                         fontWeight: 800,
-                                        letterSpacing: "0.18em",
+                                        letterSpacing: "0.16em",
                                         textTransform: "uppercase",
-                                        color: isAdminDept
-                                            ? "#FF8F86"
-                                            : "#8BB9FF",
+                                        background: horizontalGradient,
+                                        WebkitBackgroundClip: "text",
+                                        WebkitTextFillColor: "transparent",
                                     }}
                                 >
-                                    {currentDepartment.badge}
+                                    {currentDepartment.subtitle}
                                 </span>
                                 <span
                                     style={{
                                         fontSize: "11px",
                                         fontWeight: 700,
-                                        color: "rgba(255, 255, 255, 0.68)",
+                                        color: "rgba(255, 255, 255, 0.65)",
                                     }}
                                 >
                                     {currentDepartment.items.length} sections
@@ -719,7 +810,7 @@ export function DashboardScreen({
                             <h1
                                 style={{
                                     margin: "0 0 5px",
-                                    fontSize: "21px",
+                                    fontSize: "22px",
                                     fontWeight: 800,
                                     letterSpacing: "-0.02em",
                                     color: "#FFFFFF",
@@ -727,6 +818,7 @@ export function DashboardScreen({
                             >
                                 {currentDepartment.title}
                             </h1>
+
                             <p
                                 style={{
                                     margin: 0,
@@ -740,21 +832,16 @@ export function DashboardScreen({
                         </div>
                     </section>
 
-                    {/* All Sections Inside This Department */}
+                    {/* Department Sections Stack */}
                     <div
                         style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                            gap: "12px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "10px",
                         }}
                     >
-                        {currentDepartment.items.map((action, index) => {
-                            const accentHex = getAccentColor(action.accent)
+                        {currentDepartment.items.map((action, idx) => {
                             const isPressed = pressedId === action.id
-                            const isLastOdd =
-                                hasOddCount &&
-                                index === currentDepartment.items.length - 1
-                            const isFeatured = Boolean(action.featured)
 
                             return (
                                 <button
@@ -765,107 +852,99 @@ export function DashboardScreen({
                                     onPointerLeave={() => setPressedId(null)}
                                     onClick={() => handleActionClick(action)}
                                     style={{
-                                        gridColumn: isLastOdd
-                                            ? "1 / -1"
-                                            : undefined,
+                                        width: "100%",
                                         textAlign: "left",
-                                        padding: "16px 15px",
-                                        borderRadius: "17px",
-                                        border: isFeatured
-                                            ? `1px solid ${
-                                                  isAdminDept
-                                                      ? "rgba(250, 52, 37, 0.5)"
-                                                      : "rgba(255, 255, 255, 0.12)"
-                                              }`
-                                            : "1px solid rgba(0, 2, 1, 0.09)",
-                                        background: isFeatured
-                                            ? `linear-gradient(140deg, ${blackColor} 0%, #131B2E 100%)`
-                                            : "#FFFFFF",
-                                        color: isFeatured
-                                            ? "#FFFFFF"
-                                            : blackColor,
+                                        padding: "15px 16px",
+                                        borderRadius: "16px",
+                                        border: "1px solid rgba(0, 2, 1, 0.1)",
+                                        backgroundColor: "#FFFFFF",
+                                        color: blackColor,
                                         cursor: "pointer",
                                         display: "flex",
-                                        flexDirection: "column",
+                                        alignItems: "center",
                                         justifyContent: "space-between",
-                                        minHeight: isLastOdd ? "94px" : "116px",
-                                        boxSizing: "border-box",
-                                        boxShadow: isFeatured
-                                            ? "0 12px 24px rgba(0, 2, 1, 0.16)"
-                                            : "0 8px 20px rgba(0, 2, 1, 0.04)",
+                                        gap: "14px",
                                         transform: isPressed
-                                            ? "scale(0.985)"
+                                            ? "scale(0.988)"
                                             : "scale(1)",
-                                        transition: "transform 120ms ease",
+                                        transition: "transform 110ms ease",
                                     }}
                                 >
                                     <div
                                         style={{
                                             display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            gap: "8px",
-                                            marginBottom: "14px",
+                                            alignItems: "stretch",
+                                            gap: "13px",
+                                            minWidth: 0,
                                         }}
                                     >
                                         <span
                                             style={{
-                                                width: "30px",
-                                                height: "4px",
+                                                width: "4px",
                                                 borderRadius: "999px",
-                                                backgroundColor:
-                                                    isFeatured &&
-                                                    action.accent === "black"
-                                                        ? "#FFFFFF"
-                                                        : accentHex,
+                                                flexShrink: 0,
+                                                ...getAccentStyle(action.accent),
                                             }}
                                         />
-                                        <span
-                                            style={{
-                                                fontSize: "10px",
-                                                fontWeight: 800,
-                                                letterSpacing: "0.08em",
-                                                textTransform: "uppercase",
-                                                color: isFeatured
-                                                    ? "rgba(255, 255, 255, 0.78)"
-                                                    : isAdminDept
-                                                      ? redColor
-                                                      : greyColor,
-                                            }}
-                                        >
-                                            {action.targetView
-                                                ? "Open →"
-                                                : "View →"}
-                                        </span>
+
+                                        <div style={{ minWidth: 0 }}>
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    marginBottom: "3px",
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        fontSize: "10.5px",
+                                                        fontWeight: 800,
+                                                        color: greyColor,
+                                                    }}
+                                                >
+                                                    {String(idx + 1).padStart(
+                                                        2,
+                                                        "0"
+                                                    )}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: "15px",
+                                                        fontWeight: 800,
+                                                        letterSpacing: "-0.015em",
+                                                        color: blackColor,
+                                                    }}
+                                                >
+                                                    {action.title}
+                                                </span>
+                                            </div>
+                                            <div
+                                                style={{
+                                                    fontSize: "12.5px",
+                                                    color: greyColor,
+                                                    lineHeight: 1.35,
+                                                }}
+                                            >
+                                                {action.subtitle}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <div
-                                            style={{
-                                                fontSize: "14.5px",
-                                                fontWeight: 700,
-                                                letterSpacing: "-0.01em",
-                                                lineHeight: 1.25,
-                                                marginBottom: "4px",
-                                                color: isFeatured
-                                                    ? "#FFFFFF"
-                                                    : blackColor,
-                                            }}
-                                        >
-                                            {action.title}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: "12px",
-                                                lineHeight: 1.35,
-                                                color: isFeatured
-                                                    ? "rgba(255, 255, 255, 0.72)"
-                                                    : greyColor,
-                                            }}
-                                        >
-                                            {action.subtitle}
-                                        </div>
-                                    </div>
+                                    <span
+                                        style={{
+                                            fontSize: "11px",
+                                            fontWeight: 800,
+                                            letterSpacing: "0.08em",
+                                            textTransform: "uppercase",
+                                            color: getAccentTextColor(
+                                                action.accent
+                                            ),
+                                            flexShrink: 0,
+                                        }}
+                                    >
+                                        {action.targetView ? "Open →" : "Info →"}
+                                    </span>
                                 </button>
                             )
                         })}
@@ -874,11 +953,11 @@ export function DashboardScreen({
 
                 <footer
                     style={{
-                        maxWidth: "680px",
+                        maxWidth: "640px",
                         width: "100%",
                         margin: "32px auto 0",
                         paddingTop: "16px",
-                        borderTop: "1px solid rgba(0, 2, 1, 0.09)",
+                        borderTop: "1px solid rgba(0, 2, 1, 0.08)",
                         textAlign: "center",
                         fontSize: "12px",
                         fontWeight: 600,
@@ -888,149 +967,31 @@ export function DashboardScreen({
                     risingtalentacademy.co.uk
                 </footer>
 
-                {selectedAction && renderActionModal()}
+                {selectedAction && renderActionSheet()}
             </div>
         )
     }
 
-    function renderActionModal() {
-        if (!selectedAction) return null
-        return (
-            <div
-                onClick={() => setSelectedAction(null)}
-                style={{
-                    position: "fixed",
-                    inset: 0,
-                    backgroundColor: "rgba(0, 2, 1, 0.58)",
-                    display: "flex",
-                    alignItems: "flex-end",
-                    justifyContent: "center",
-                    zIndex: 20,
-                }}
-            >
-                <div
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                        width: "100%",
-                        maxWidth: "520px",
-                        backgroundColor: "#FFFFFF",
-                        borderTopLeftRadius: "22px",
-                        borderTopRightRadius: "22px",
-                        padding: "22px 22px 28px",
-                        boxSizing: "border-box",
-                    }}
-                >
-                    <div
-                        style={{
-                            width: "36px",
-                            height: "4px",
-                            borderRadius: "999px",
-                            backgroundColor: "rgba(0, 2, 1, 0.14)",
-                            margin: "0 auto 16px",
-                        }}
-                    />
-
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: "10px",
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontSize: "11px",
-                                fontWeight: 800,
-                                letterSpacing: "0.09em",
-                                textTransform: "uppercase",
-                                color: getAccentColor(selectedAction.accent),
-                            }}
-                        >
-                            {selectedAction.status}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => setSelectedAction(null)}
-                            style={{
-                                border: "none",
-                                background: "transparent",
-                                fontSize: "13px",
-                                fontWeight: 600,
-                                color: greyColor,
-                                cursor: "pointer",
-                            }}
-                        >
-                            Close
-                        </button>
-                    </div>
-
-                    <h2
-                        style={{
-                            margin: "0 0 8px",
-                            fontSize: "20px",
-                            fontWeight: 800,
-                            letterSpacing: "-0.01em",
-                            color: blackColor,
-                        }}
-                    >
-                        {selectedAction.title}
-                    </h2>
-                    <p
-                        style={{
-                            margin: "0 0 20px",
-                            fontSize: "14px",
-                            lineHeight: 1.55,
-                            color: greyColor,
-                        }}
-                    >
-                        {selectedAction.details}
-                    </p>
-
-                    <button
-                        type="button"
-                        onClick={() => setSelectedAction(null)}
-                        style={{
-                            width: "100%",
-                            padding: "13px 16px",
-                            borderRadius: "11px",
-                            border: "none",
-                            backgroundColor: blackColor,
-                            color: "#FFFFFF",
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            letterSpacing: "0.05em",
-                            textTransform: "uppercase",
-                            cursor: "pointer",
-                        }}
-                    >
-                        Done
-                    </button>
-                </div>
-            </div>
-        )
-    }
-
-    // Main Dashboard Screen (Paddock Pass + Department Cards)
+    // Main Dashboard Screen
     return (
         <div
             style={{
-                ...pageBackdrop,
+                ...canvasStyle,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "16px 16px 30px",
+                padding: "16px 16px 28px",
                 boxSizing: "border-box",
             }}
         >
             <div
                 style={{
-                    maxWidth: "680px",
+                    maxWidth: "640px",
                     width: "100%",
                     margin: "0 auto",
                 }}
             >
-                {/* Top Header */}
+                {/* Header */}
                 <header
                     style={{
                         display: "flex",
@@ -1044,24 +1005,23 @@ export function DashboardScreen({
                         style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "12px",
+                            gap: "11px",
                             minWidth: 0,
                         }}
                     >
                         {logoUrl && (
                             <div
                                 style={{
-                                    width: "44px",
-                                    height: "44px",
-                                    borderRadius: "13px",
+                                    width: "42px",
+                                    height: "42px",
+                                    borderRadius: "12px",
                                     backgroundColor: "#FFFFFF",
-                                    border: "1px solid rgba(0, 2, 1, 0.09)",
+                                    border: "1px solid rgba(0, 2, 1, 0.1)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
                                     padding: "6px",
                                     boxSizing: "border-box",
-                                    boxShadow: "0 6px 16px rgba(0, 2, 1, 0.06)",
                                     flexShrink: 0,
                                 }}
                             >
@@ -1081,9 +1041,9 @@ export function DashboardScreen({
                         <div style={{ minWidth: 0 }}>
                             <div
                                 style={{
-                                    fontSize: "13px",
+                                    fontSize: "12.5px",
                                     fontWeight: 900,
-                                    letterSpacing: "0.15em",
+                                    letterSpacing: "0.16em",
                                     textTransform: "uppercase",
                                     color: blackColor,
                                 }}
@@ -1119,12 +1079,12 @@ export function DashboardScreen({
                                 style={{
                                     padding: "8px 11px",
                                     borderRadius: "10px",
-                                    border: "1px solid rgba(3, 78, 175, 0.22)",
-                                    backgroundColor: "rgba(3, 78, 175, 0.07)",
+                                    border: "1px solid rgba(0, 2, 1, 0.1)",
+                                    backgroundColor: "#FFFFFF",
                                     color: blueColor,
                                     fontSize: "11px",
                                     fontWeight: 800,
-                                    letterSpacing: "0.03em",
+                                    letterSpacing: "0.04em",
                                     cursor: "pointer",
                                 }}
                             >
@@ -1135,15 +1095,14 @@ export function DashboardScreen({
                             type="button"
                             onClick={onSignOut}
                             style={{
-                                padding: "8px 14px",
+                                padding: "8px 13px",
                                 borderRadius: "10px",
-                                border: "1px solid rgba(0, 2, 1, 0.14)",
+                                border: "1px solid rgba(0, 2, 1, 0.12)",
                                 backgroundColor: "#FFFFFF",
                                 color: blackColor,
                                 fontSize: "12px",
                                 fontWeight: 700,
                                 cursor: "pointer",
-                                boxShadow: "0 3px 10px rgba(0, 2, 1, 0.04)",
                             }}
                         >
                             Sign Out
@@ -1151,46 +1110,63 @@ export function DashboardScreen({
                     </div>
                 </header>
 
-                {/* Paddock Pass Hero */}
+                {/* Redesigned Paddock Pass */}
                 <section
                     style={{
+                        position: "relative",
                         borderRadius: "22px",
-                        background: `linear-gradient(140deg, ${blackColor} 0%, #0D1322 58%, #071A38 100%)`,
+                        backgroundColor: blackColor,
                         color: "#FFFFFF",
                         overflow: "hidden",
                         marginBottom: "18px",
-                        boxShadow: "0 18px 36px rgba(0, 2, 1, 0.2)",
                         border: "1px solid rgba(255, 255, 255, 0.08)",
                     }}
                 >
+                    {/* Left Vertical Racing Gradient Strip */}
                     <div
                         style={{
-                            height: "4px",
-                            width: "100%",
-                            background: `linear-gradient(90deg, ${redColor} 0%, ${redColor} 45%, ${blueColor} 100%)`,
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            left: 0,
+                            width: "5px",
+                            background: `linear-gradient(180deg, ${redColor} 0%, ${blueColor} 100%)`,
                         }}
                     />
 
-                    <div style={{ padding: "19px 20px 20px" }}>
+                    {/* Top Gradient Accent Bar */}
+                    <div
+                        style={{
+                            height: "3px",
+                            width: "100%",
+                            background: horizontalGradient,
+                        }}
+                    />
+
+                    <div style={{ padding: "18px 20px 20px 24px" }}>
                         <div
                             style={{
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
-                                marginBottom: "10px",
+                                gap: "10px",
+                                marginBottom: "12px",
                             }}
                         >
                             <span
                                 style={{
-                                    fontSize: "10px",
+                                    fontSize: "10.5px",
                                     fontWeight: 800,
-                                    letterSpacing: "0.2em",
+                                    letterSpacing: "0.22em",
                                     textTransform: "uppercase",
-                                    color: "rgba(255, 255, 255, 0.62)",
+                                    background: horizontalGradient,
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
                                 }}
                             >
                                 Paddock Pass
                             </span>
+
                             <span
                                 style={{
                                     display: "inline-flex",
@@ -1200,62 +1176,49 @@ export function DashboardScreen({
                                     fontWeight: 800,
                                     letterSpacing: "0.14em",
                                     textTransform: "uppercase",
-                                    color: "#FFFFFF",
+                                    color: "rgba(255, 255, 255, 0.85)",
                                 }}
                             >
                                 <span
                                     style={{
-                                        width: "7px",
-                                        height: "7px",
+                                        width: "6px",
+                                        height: "6px",
                                         borderRadius: "999px",
-                                        backgroundColor: redColor,
-                                        boxShadow: `0 0 10px ${redColor}`,
+                                        background: signatureGradient,
                                     }}
                                 />
                                 Active
                             </span>
                         </div>
 
-                        <div
-                            style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                alignItems: "baseline",
-                                gap: "8px",
-                                marginBottom: "15px",
-                            }}
-                        >
-                            <span
+                        <div style={{ marginBottom: "14px" }}>
+                            <div
                                 style={{
-                                    fontSize: "22px",
+                                    fontSize: "23px",
                                     fontWeight: 800,
-                                    letterSpacing: "-0.02em",
+                                    letterSpacing: "-0.025em",
+                                    lineHeight: 1.15,
                                     color: "#FFFFFF",
+                                    marginBottom: "4px",
                                 }}
                             >
                                 {user.name}
-                            </span>
-                            <span
+                            </div>
+                            <div
                                 style={{
-                                    color: "rgba(255, 255, 255, 0.28)",
-                                    fontSize: "15px",
-                                }}
-                            >
-                                |
-                            </span>
-                            <span
-                                style={{
-                                    fontSize: "13.5px",
-                                    fontWeight: 700,
-                                    color: "#8BB9FF",
+                                    fontSize: "13px",
+                                    fontWeight: 600,
+                                    color: "rgba(255, 255, 255, 0.7)",
                                 }}
                             >
                                 {user.role}
-                            </span>
+                            </div>
                         </div>
 
                         <div
                             style={{
+                                paddingTop: "12px",
+                                borderTop: "1px solid rgba(255, 255, 255, 0.1)",
                                 display: "flex",
                                 flexWrap: "wrap",
                                 alignItems: "center",
@@ -1273,15 +1236,15 @@ export function DashboardScreen({
                             >
                                 <span
                                     style={{
-                                        padding: "5px 11px",
-                                        borderRadius: "8px",
+                                        padding: "4px 10px",
+                                        borderRadius: "7px",
                                         backgroundColor:
-                                            "rgba(255, 255, 255, 0.11)",
+                                            "rgba(255, 255, 255, 0.08)",
                                         border:
-                                            "1px solid rgba(255, 255, 255, 0.16)",
-                                        fontSize: "11.5px",
+                                            "1px solid rgba(255, 255, 255, 0.14)",
+                                        fontSize: "11px",
                                         fontWeight: 800,
-                                        letterSpacing: "0.1em",
+                                        letterSpacing: "0.12em",
                                         textTransform: "uppercase",
                                         color: "#FFFFFF",
                                     }}
@@ -1291,26 +1254,15 @@ export function DashboardScreen({
 
                                 <span
                                     style={{
-                                        padding: "5px 11px",
-                                        borderRadius: "8px",
+                                        padding: "4px 10px",
+                                        borderRadius: "7px",
                                         backgroundColor:
-                                            user.permissionGroup ===
-                                            "leadership"
-                                                ? "rgba(250, 52, 37, 0.22)"
-                                                : "rgba(3, 78, 175, 0.35)",
+                                            "rgba(255, 255, 255, 0.04)",
                                         border:
-                                            user.permissionGroup ===
-                                            "leadership"
-                                                ? "1px solid rgba(250, 52, 37, 0.48)"
-                                                : "1px solid rgba(139, 185, 255, 0.35)",
+                                            "1px solid rgba(255, 255, 255, 0.1)",
                                         fontSize: "11px",
                                         fontWeight: 700,
-                                        letterSpacing: "0.04em",
-                                        color:
-                                            user.permissionGroup ===
-                                            "leadership"
-                                                ? "#FF8F86"
-                                                : "#C2DAFF",
+                                        color: "rgba(255, 255, 255, 0.8)",
                                     }}
                                 >
                                     {GROUP_LABELS[user.permissionGroup]}
@@ -1324,11 +1276,11 @@ export function DashboardScreen({
                                     onClick={handleEnablePush}
                                     style={{
                                         padding: "5px 10px",
-                                        borderRadius: "8px",
+                                        borderRadius: "7px",
                                         border:
-                                            "1px solid rgba(255, 255, 255, 0.2)",
+                                            "1px solid rgba(255, 255, 255, 0.18)",
                                         backgroundColor:
-                                            "rgba(255, 255, 255, 0.08)",
+                                            "rgba(255, 255, 255, 0.06)",
                                         color: "#FFFFFF",
                                         fontSize: "11px",
                                         fontWeight: 700,
@@ -1347,7 +1299,7 @@ export function DashboardScreen({
                                 style={{
                                     marginTop: "10px",
                                     fontSize: "11.5px",
-                                    color: "#C2DAFF",
+                                    color: "rgba(255, 255, 255, 0.8)",
                                 }}
                             >
                                 {pushStatusMsg}
@@ -1356,7 +1308,38 @@ export function DashboardScreen({
                     </div>
                 </section>
 
-                {/* Department Cards (Each opens its own full page) */}
+                {/* Department Label */}
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0 4px 10px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: 800,
+                            letterSpacing: "0.14em",
+                            textTransform: "uppercase",
+                            color: greyColor,
+                        }}
+                    >
+                        Departments
+                    </span>
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: greyColor,
+                        }}
+                    >
+                        {departments.length} available
+                    </span>
+                </div>
+
+                {/* Department Cards */}
                 <div
                     style={{
                         display: "flex",
@@ -1366,7 +1349,6 @@ export function DashboardScreen({
                 >
                     {departments.map((dept) => {
                         const isPressed = pressedId === dept.category
-                        const isAdmin = dept.category === "leadership"
 
                         return (
                             <button
@@ -1383,26 +1365,21 @@ export function DashboardScreen({
                                     textAlign: "left",
                                     padding: 0,
                                     borderRadius: "20px",
-                                    border: isAdmin
-                                        ? "1px solid rgba(250, 52, 37, 0.28)"
-                                        : "1px solid rgba(0, 2, 1, 0.09)",
+                                    border: "1px solid rgba(0, 2, 1, 0.1)",
                                     backgroundColor: "#FFFFFF",
                                     overflow: "hidden",
                                     cursor: "pointer",
-                                    boxShadow: "0 10px 24px rgba(0, 2, 1, 0.05)",
                                     transform: isPressed
                                         ? "scale(0.988)"
                                         : "scale(1)",
-                                    transition: "transform 120ms ease",
+                                    transition: "transform 110ms ease",
                                 }}
                             >
                                 <div
                                     style={{
-                                        height: "3.5px",
+                                        height: "3px",
                                         width: "100%",
-                                        background: getDepartmentStripe(
-                                            dept.accentType
-                                        ),
+                                        background: horizontalGradient,
                                     }}
                                 />
 
@@ -1412,38 +1389,40 @@ export function DashboardScreen({
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "space-between",
-                                            gap: "10px",
+                                            gap: "12px",
                                             marginBottom: "6px",
                                         }}
                                     >
                                         <div
                                             style={{
                                                 display: "flex",
-                                                alignItems: "center",
-                                                gap: "8px",
+                                                alignItems: "baseline",
+                                                gap: "10px",
                                                 minWidth: 0,
                                             }}
                                         >
                                             <span
                                                 style={{
-                                                    width: "8px",
-                                                    height: "8px",
-                                                    borderRadius: "2px",
-                                                    transform: "rotate(45deg)",
-                                                    backgroundColor: isAdmin
-                                                        ? redColor
-                                                        : blueColor,
+                                                    fontSize: "12px",
+                                                    fontWeight: 900,
+                                                    letterSpacing: "0.08em",
+                                                    background:
+                                                        horizontalGradient,
+                                                    WebkitBackgroundClip:
+                                                        "text",
+                                                    WebkitTextFillColor:
+                                                        "transparent",
                                                     flexShrink: 0,
                                                 }}
-                                            />
+                                            >
+                                                {dept.code}
+                                            </span>
                                             <span
                                                 style={{
-                                                    fontSize: "17px",
+                                                    fontSize: "17.5px",
                                                     fontWeight: 800,
-                                                    letterSpacing: "-0.015em",
-                                                    color: isAdmin
-                                                        ? redColor
-                                                        : blackColor,
+                                                    letterSpacing: "-0.02em",
+                                                    color: blackColor,
                                                 }}
                                             >
                                                 {dept.title}
@@ -1454,11 +1433,9 @@ export function DashboardScreen({
                                             style={{
                                                 fontSize: "11px",
                                                 fontWeight: 800,
-                                                letterSpacing: "0.06em",
+                                                letterSpacing: "0.08em",
                                                 textTransform: "uppercase",
-                                                color: isAdmin
-                                                    ? redColor
-                                                    : blueColor,
+                                                color: blackColor,
                                                 flexShrink: 0,
                                             }}
                                         >
@@ -1480,54 +1457,20 @@ export function DashboardScreen({
                                     <div
                                         style={{
                                             display: "flex",
-                                            flexWrap: "wrap",
                                             alignItems: "center",
-                                            gap: "6px",
+                                            justifyContent: "space-between",
+                                            paddingTop: "10px",
+                                            borderTop:
+                                                "1px solid rgba(0, 2, 1, 0.06)",
+                                            fontSize: "11.5px",
+                                            fontWeight: 700,
+                                            color: blackColor,
                                         }}
                                     >
-                                        <span
-                                            style={{
-                                                padding: "4px 9px",
-                                                borderRadius: "7px",
-                                                backgroundColor: "#F3F5F9",
-                                                fontSize: "11px",
-                                                fontWeight: 700,
-                                                color: blackColor,
-                                            }}
-                                        >
+                                        <span>{dept.subtitle}</span>
+                                        <span style={{ color: greyColor }}>
                                             {dept.items.length} sections
                                         </span>
-
-                                        {dept.items.slice(0, 3).map((item) => (
-                                            <span
-                                                key={item.id}
-                                                style={{
-                                                    padding: "4px 9px",
-                                                    borderRadius: "7px",
-                                                    backgroundColor:
-                                                        "rgba(0, 2, 1, 0.04)",
-                                                    fontSize: "11px",
-                                                    fontWeight: 600,
-                                                    color: greyColor,
-                                                }}
-                                            >
-                                                {item.title}
-                                            </span>
-                                        ))}
-
-                                        {dept.items.length > 3 && (
-                                            <span
-                                                style={{
-                                                    padding: "4px 8px",
-                                                    borderRadius: "7px",
-                                                    fontSize: "11px",
-                                                    fontWeight: 700,
-                                                    color: greyColor,
-                                                }}
-                                            >
-                                                +{dept.items.length - 3} more
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
                             </button>
@@ -1539,33 +1482,32 @@ export function DashboardScreen({
             {/* Footer */}
             <footer
                 style={{
-                    maxWidth: "680px",
+                    maxWidth: "640px",
                     width: "100%",
                     margin: "32px auto 0",
                     paddingTop: "16px",
-                    borderTop: "1px solid rgba(0, 2, 1, 0.09)",
+                    borderTop: "1px solid rgba(0, 2, 1, 0.08)",
                     textAlign: "center",
                     fontSize: "12px",
                     fontWeight: 600,
-                    letterSpacing: "0.02em",
                     color: greyColor,
                 }}
             >
                 risingtalentacademy.co.uk
             </footer>
 
-            {/* Install Instructions Sheet */}
+            {/* Install Sheet */}
             {installSheetOpen && (
                 <div
                     onClick={() => setInstallSheetOpen(false)}
                     style={{
                         position: "fixed",
                         inset: 0,
-                        backgroundColor: "rgba(0, 2, 1, 0.58)",
+                        backgroundColor: "rgba(0, 2, 1, 0.62)",
                         display: "flex",
                         alignItems: "flex-end",
                         justifyContent: "center",
-                        zIndex: 25,
+                        zIndex: 30,
                     }}
                 >
                     <div
@@ -1574,169 +1516,173 @@ export function DashboardScreen({
                             width: "100%",
                             maxWidth: "520px",
                             backgroundColor: "#FFFFFF",
-                            borderTopLeftRadius: "22px",
-                            borderTopRightRadius: "22px",
-                            padding: "22px 22px 28px",
+                            borderTopLeftRadius: "24px",
+                            borderTopRightRadius: "24px",
+                            overflow: "hidden",
                             boxSizing: "border-box",
                         }}
                     >
                         <div
                             style={{
-                                width: "36px",
                                 height: "4px",
-                                borderRadius: "999px",
-                                backgroundColor: "rgba(0, 2, 1, 0.14)",
-                                margin: "0 auto 16px",
+                                width: "100%",
+                                background: horizontalGradient,
                             }}
                         />
 
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                marginBottom: "14px",
-                            }}
-                        >
-                            <h2
+                        <div style={{ padding: "20px 22px 28px" }}>
+                            <div
                                 style={{
-                                    margin: 0,
-                                    fontSize: "18px",
-                                    fontWeight: 800,
-                                    color: blackColor,
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "14px",
                                 }}
                             >
-                                Add to Home Screen
-                            </h2>
+                                <h2
+                                    style={{
+                                        margin: 0,
+                                        fontSize: "18px",
+                                        fontWeight: 800,
+                                        color: blackColor,
+                                    }}
+                                >
+                                    Add to Home Screen
+                                </h2>
+                                <button
+                                    type="button"
+                                    onClick={() => setInstallSheetOpen(false)}
+                                    style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        fontSize: "13px",
+                                        fontWeight: 700,
+                                        color: greyColor,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Close
+                                </button>
+                            </div>
+
+                            <div
+                                style={{
+                                    padding: "13px 15px",
+                                    borderRadius: "14px",
+                                    border: "1px solid rgba(0, 2, 1, 0.1)",
+                                    backgroundColor: "#F9FAFB",
+                                    marginBottom: "12px",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontSize: "12px",
+                                        fontWeight: 800,
+                                        letterSpacing: "0.06em",
+                                        textTransform: "uppercase",
+                                        color: redColor,
+                                        marginBottom: "6px",
+                                    }}
+                                >
+                                    iPhone (Safari)
+                                </div>
+                                <ol
+                                    style={{
+                                        margin: 0,
+                                        paddingLeft: "18px",
+                                        fontSize: "13px",
+                                        lineHeight: 1.55,
+                                        color: blackColor,
+                                    }}
+                                >
+                                    <li>
+                                        Open this portal in{" "}
+                                        <strong>Safari</strong>.
+                                    </li>
+                                    <li>
+                                        Tap the <strong>Share</strong> icon at
+                                        the bottom of the screen.
+                                    </li>
+                                    <li>
+                                        Scroll down and tap{" "}
+                                        <strong>Add to Home Screen</strong>,
+                                        then tap <strong>Add</strong>.
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <div
+                                style={{
+                                    padding: "13px 15px",
+                                    borderRadius: "14px",
+                                    border: "1px solid rgba(0, 2, 1, 0.1)",
+                                    backgroundColor: "#F9FAFB",
+                                    marginBottom: "18px",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontSize: "12px",
+                                        fontWeight: 800,
+                                        letterSpacing: "0.06em",
+                                        textTransform: "uppercase",
+                                        color: blueColor,
+                                        marginBottom: "6px",
+                                    }}
+                                >
+                                    Android (Chrome)
+                                </div>
+                                <ol
+                                    style={{
+                                        margin: 0,
+                                        paddingLeft: "18px",
+                                        fontSize: "13px",
+                                        lineHeight: 1.55,
+                                        color: blackColor,
+                                    }}
+                                >
+                                    <li>
+                                        Open this portal in{" "}
+                                        <strong>Chrome</strong>.
+                                    </li>
+                                    <li>
+                                        Tap the{" "}
+                                        <strong>three-dot menu (⋮)</strong> in
+                                        the top-right corner.
+                                    </li>
+                                    <li>
+                                        Tap <strong>Add to Home screen</strong>{" "}
+                                        (or <strong>Install app</strong>) and
+                                        confirm.
+                                    </li>
+                                </ol>
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => setInstallSheetOpen(false)}
                                 style={{
+                                    width: "100%",
+                                    padding: "13px 16px",
+                                    borderRadius: "12px",
                                     border: "none",
-                                    background: "transparent",
-                                    fontSize: "13px",
-                                    fontWeight: 600,
-                                    color: greyColor,
+                                    background: horizontalGradient,
+                                    color: "#FFFFFF",
+                                    fontSize: "12.5px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.08em",
+                                    textTransform: "uppercase",
                                     cursor: "pointer",
                                 }}
                             >
-                                Close
+                                Got It
                             </button>
                         </div>
-
-                        <div
-                            style={{
-                                padding: "13px 15px",
-                                borderRadius: "14px",
-                                border: "1px solid rgba(0, 2, 1, 0.1)",
-                                backgroundColor: "#F9FAFB",
-                                marginBottom: "12px",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    fontSize: "12px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.06em",
-                                    textTransform: "uppercase",
-                                    color: redColor,
-                                    marginBottom: "6px",
-                                }}
-                            >
-                                iPhone (Safari)
-                            </div>
-                            <ol
-                                style={{
-                                    margin: 0,
-                                    paddingLeft: "18px",
-                                    fontSize: "13px",
-                                    lineHeight: 1.55,
-                                    color: blackColor,
-                                }}
-                            >
-                                <li>
-                                    Open this portal in <strong>Safari</strong>.
-                                </li>
-                                <li>
-                                    Tap the <strong>Share</strong> icon at the
-                                    bottom of the screen.
-                                </li>
-                                <li>
-                                    Scroll down and tap{" "}
-                                    <strong>Add to Home Screen</strong>, then
-                                    tap <strong>Add</strong>.
-                                </li>
-                            </ol>
-                        </div>
-
-                        <div
-                            style={{
-                                padding: "13px 15px",
-                                borderRadius: "14px",
-                                border: "1px solid rgba(0, 2, 1, 0.1)",
-                                backgroundColor: "#F9FAFB",
-                                marginBottom: "18px",
-                            }}
-                        >
-                            <div
-                                style={{
-                                    fontSize: "12px",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.06em",
-                                    textTransform: "uppercase",
-                                    color: blueColor,
-                                    marginBottom: "6px",
-                                }}
-                            >
-                                Android (Chrome)
-                            </div>
-                            <ol
-                                style={{
-                                    margin: 0,
-                                    paddingLeft: "18px",
-                                    fontSize: "13px",
-                                    lineHeight: 1.55,
-                                    color: blackColor,
-                                }}
-                            >
-                                <li>
-                                    Open this portal in <strong>Chrome</strong>.
-                                </li>
-                                <li>
-                                    Tap the <strong>three-dot menu (⋮)</strong>{" "}
-                                    in the top-right corner.
-                                </li>
-                                <li>
-                                    Tap <strong>Add to Home screen</strong> (or{" "}
-                                    <strong>Install app</strong>) and confirm.
-                                </li>
-                            </ol>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setInstallSheetOpen(false)}
-                            style={{
-                                width: "100%",
-                                padding: "13px 16px",
-                                borderRadius: "11px",
-                                border: "none",
-                                backgroundColor: blackColor,
-                                color: "#FFFFFF",
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                letterSpacing: "0.05em",
-                                textTransform: "uppercase",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Got It
-                        </button>
                     </div>
                 </div>
             )}
 
-            {selectedAction && renderActionModal()}
+            {selectedAction && renderActionSheet()}
         </div>
     )
 }
