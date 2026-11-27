@@ -30,32 +30,7 @@ export interface CloudAsset {
 
 export const CLOUD_ASSETS_STORAGE_KEY = "rta_staff_portal_cloud_assets_v1"
 
-export const INITIAL_CLOUD_ASSETS: CloudAsset[] = [
-    {
-        id: "cld-1",
-        title: "Race Weekend Driver Spotlight — Final Cut",
-        type: "Reel / TikTok",
-        aspectRatio: "9:16",
-        source: "CapCut",
-        url: "https://www.capcut.com",
-        creator: "Brooke",
-        dateAdded: "27/11/2026",
-        status: "In Review",
-        notes: "1080x1920 export, safe-zone captions checked; ready for approval.",
-    },
-    {
-        id: "cld-2",
-        title: "Academy Standings Carousel Template",
-        type: "Graphic / Thumbnail",
-        aspectRatio: "4:5",
-        source: "Canva",
-        url: "https://www.canva.com",
-        creator: "Brooke",
-        dateAdded: "25/11/2026",
-        status: "Approved",
-        notes: "Uses #fa3425 accent bar and clean headline hierarchy.",
-    },
-]
+export const INITIAL_CLOUD_ASSETS: CloudAsset[] = []
 
 function formatDateUK(date = new Date()): string {
     const dd = String(date.getDate()).padStart(2, "0")
@@ -86,9 +61,11 @@ export function loadCloudAssets(): CloudAsset[] {
         const raw = localStorage.getItem(CLOUD_ASSETS_STORAGE_KEY)
         if (!raw) return INITIAL_CLOUD_ASSETS
         const parsed = JSON.parse(raw)
-        return Array.isArray(parsed) && parsed.length > 0
-            ? parsed
-            : INITIAL_CLOUD_ASSETS
+        if (!Array.isArray(parsed)) return INITIAL_CLOUD_ASSETS
+        // Filter out the old hardcoded sample IDs if still cached in localStorage
+        return parsed.filter(
+            (item: CloudAsset) => item.id !== "cld-1" && item.id !== "cld-2"
+        )
     } catch {
         return INITIAL_CLOUD_ASSETS
     }
@@ -112,7 +89,7 @@ interface UploadAssetsViewProps {
 }
 
 export const UploadAssetsView: React.FC<UploadAssetsViewProps> = ({
-    defaultCreator = "Brooke",
+    defaultCreator = "",
     onBack,
     redColor = "#fa3425",
     blueColor = "#034eaf",
@@ -140,7 +117,6 @@ export const UploadAssetsView: React.FC<UploadAssetsViewProps> = ({
         saveCloudAssets(assets)
     }, [assets])
 
-    // Sync if updated in Editorial & Content Approvals while mounted
     useEffect(() => {
         const onStorage = (e: StorageEvent) => {
             if (e.key === CLOUD_ASSETS_STORAGE_KEY) {
@@ -536,7 +512,7 @@ export const UploadAssetsView: React.FC<UploadAssetsViewProps> = ({
                             color: greyColor,
                         }}
                     >
-                        No matching assets found.
+                        No assets submitted yet. Tap <strong>+ Add Asset Link</strong> to share a link for review.
                     </div>
                 ) : (
                     filteredAssets.map((asset) => {
