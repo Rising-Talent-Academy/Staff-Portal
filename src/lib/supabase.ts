@@ -21,6 +21,20 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
     ? createClient(supabaseUrl!, supabaseAnonKey!)
     : null
 
+export function formatPermissionGroupLabel(group: PermissionGroup): string {
+    switch (group) {
+        case "leadership":
+            return "Leadership"
+        case "both":
+            return "Editorial & Creator"
+        case "journalist":
+            return "Journalist"
+        case "creator":
+        default:
+            return "Creator"
+    }
+}
+
 export async function fetchStaffProfile(userId: string): Promise<StaffProfile> {
     if (!supabase) {
         throw new Error("Supabase is not configured yet.")
