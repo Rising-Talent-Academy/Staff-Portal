@@ -8,6 +8,7 @@ import { TechSystemsView } from "./TechSystemsView"
 import { HrLegalVaultView } from "./HrLegalVaultView"
 import { UploadAssetsView } from "./UploadAssetsView"
 import { TeamBriefingsView } from "./TeamBriefingsView"
+import { DeptMemosView } from "./DeptMemosView"
 
 export type PermissionGroup =
     | "journalist"
