@@ -1,1107 +1,612 @@
 import React, { useEffect, useState } from "react"
-import { supabase } from "../lib/supabase"
 import type { StaffProfile } from "./DashboardScreen"
+import {
+    CLOUD_ASSETS_STORAGE_KEY,
+    loadCloudAssets,
+    saveCloudAssets,
+    type AssetStatus,
+    type CloudAsset,
+} from "./UploadAssetsView"
 
-export type ArticleStatus =
-    | "draft"
-    | "pending_review"
-    | "approved"
-    | "scheduled"
-    | "rejected"
+export type ArticlesViewMode = "queue" | "submit" | "approvals"
 
-export interface ArticleRecord {
+export interface ArticleSubmission {
     id: string
-    created_at: string
-    updated_at: string
-    author_id: string | null
-    author_name: string
-    author_rta_id: string
     title: string
-    description: string
-    photo_url: string | null
-    article_body: string
+    summary: string
+    body: string
+    photoUrl?: string
     credits: string
-    status: ArticleStatus
-    rejection_reason?: string
-    scheduled_for?: string | null
+    author: string
+    authorRtaId: string
+    submittedDate: string
+    status: "In Review" | "Approved" | "Needs Tweaks"
+    reviewFeedback?: string
 }
 
 interface ArticlesViewProps {
     user: StaffProfile
+    initialMode?: ArticlesViewMode
     onBack: () => void
-    initialMode?: "queue" | "submit" | "approvals"
     redColor?: string
     blueColor?: string
     greyColor?: string
     blackColor?: string
 }
 
-const STATUS_LABELS: Record<ArticleStatus, string> = {
-    draft: "Draft",
-    pending_review: "Pending Review",
-    approved: "Approved",
-    scheduled: "Scheduled",
-    rejected: "Rejected",
+const ARTICLES_STORAGE_KEY = "rta_staff_portal_articles_v1"
+
+const INITIAL_ARTICLES: ArticleSubmission[] = [
+    {
+        id: "art-1",
+        title: "Silverstone Qualifying Recap: Rising Talent Contenders Shine",
+        summary: "Lap-by-lap breakdown of qualifying pace, tyre strategy, and key paddock takeaways.",
+        body: "Qualifying under overcast skies at Silverstone delivered tight margins across the top ten...",
+        credits: "Words & Paddock Notes by Editorial Desk",
+        author: "Alex Mercer",
+        authorRtaId: "RTA-104",
+        submittedDate: "26/11/2026",
+        status: "In Review",
+    },
+    {
+        id: "art-2",
+        title: "Inside the Sim Prep Behind Academy Race Weekends",
+        summary: "How academy drivers prepare racecraft and consistency ahead of lights out.",
+        body: "Before a single wheel turns at the circuit, drivers log hours refining braking markers...",
+        credits: "Feature by Editorial Desk",
+        author: "Jordan Taylor",
+        authorRtaId: "RTA-112",
+        submittedDate: "24/11/2026",
+        status: "Approved",
+    },
+]
+
+function formatDateUK(date = new Date()): string {
+    const dd = String(date.getDate()).padStart(2, "0")
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    const yyyy = date.getFullYear()
+    return `${dd}/${mm}/${yyyy}`
 }
 
-export function ArticlesView({
+function loadArticles(): ArticleSubmission[] {
+    try {
+        const raw = localStorage.getItem(ARTICLES_STORAGE_KEY)
+        if (!raw) return INITIAL_ARTICLES
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) && parsed.length > 0
+            ? parsed
+            : INITIAL_ARTICLES
+    } catch {
+        return INITIAL_ARTICLES
+    }
+}
+
+function saveArticles(items: ArticleSubmission[]): void {
+    try {
+        localStorage.setItem(ARTICLES_STORAGE_KEY, JSON.stringify(items))
+    } catch {
+        // Ignore storage errors
+    }
+}
+
+export const ArticlesView: React.FC<ArticlesViewProps> = ({
     user,
-    onBack,
     initialMode = "queue",
+    onBack,
     redColor = "#fa3425",
     blueColor = "#034eaf",
     greyColor = "#696969",
     blackColor = "#000201",
-}: ArticlesViewProps) {
-    const [articles, setArticles] = useState<ArticleRecord[]>([])
-    const [loading, setLoading] = useState(true)
+}) => {
+    const canApprove = user.permissionGroup === "leadership"
 
-    const [approvalDept, setApprovalDept] = useState<
-        "journalism" | "content"
-    >("journalism")
+    const [mode, setMode] = useState<ArticlesViewMode>(() =>
+        initialMode === "approvals" && !canApprove ? "queue" : initialMode
+    )
+    const [approvalTab, setApprovalTab] = useState<"journalism" | "content">(
+        "content"
+    )
+    const [assetStatusFilter, setAssetStatusFilter] = useState<
+        "All" | AssetStatus
+    >("In Review")
 
-    // Review & workflow action states (admin)
-    const [reviewingArticle, setReviewingArticle] =
-        useState<ArticleRecord | null>(null)
-    const [rejectingId, setRejectingId] = useState<string | null>(null)
-    const [rejectReason, setRejectReason] = useState("")
-    const [schedulingId, setSchedulingId] = useState<string | null>(null)
-    const [scheduleDateTime, setScheduleDateTime] = useState("")
-    const [actionBusyId, setActionBusyId] = useState<string | null>(null)
-    const [copiedId, setCopiedId] = useState<string | null>(null)
+    const [articles, setArticles] = useState<ArticleSubmission[]>(() =>
+        loadArticles()
+    )
+    const [contentAssets, setContentAssets] = useState<CloudAsset[]>(() =>
+        loadCloudAssets()
+    )
 
-    // Submission / edit form state
-    const [editingId, setEditingId] = useState<string | null>(null)
+    // Submit Article form state
     const [title, setTitle] = useState("")
-    const [description, setDescription] = useState("")
-    const [articleBody, setArticleBody] = useState("")
-    const [credits, setCredits] = useState("")
-    const [photoUrl, setPhotoUrl] = useState<string | null>(null)
-    const [photoFile, setPhotoFile] = useState<File | null>(null)
-    const [saving, setSaving] = useState(false)
-    const [errorMsg, setErrorMsg] = useState("")
-    const [successMsg, setSuccessMsg] = useState("")
-
-    const isLeadership = user.permissionGroup === "leadership"
-
-    const resetForm = () => {
-        setEditingId(null)
-        setTitle("")
-        setDescription("")
-        setArticleBody("")
-        setCredits("")
-        setPhotoUrl(null)
-        setPhotoFile(null)
-        setErrorMsg("")
-    }
-
-    const loadArticles = async () => {
-        if (!supabase) {
-            setLoading(false)
-            return
-        }
-        setLoading(true)
-
-        let query = supabase
-            .from("articles")
-            .select("*")
-            .order("updated_at", { ascending: false })
-
-        if (initialMode === "queue") {
-            const { data: sessionData } = await supabase.auth.getSession()
-            const authUserId = sessionData.session?.user?.id
-            if (authUserId) {
-                query = query.eq("author_id", authUserId)
-            } else {
-                query = query.eq("author_rta_id", user.rtaId)
-            }
-        }
-
-        const { data, error } = await query
-        if (!error && Array.isArray(data)) {
-            setArticles(data as ArticleRecord[])
-        }
-        setLoading(false)
-    }
+    const [summary, setSummary] = useState("")
+    const [photoUrl, setPhotoUrl] = useState("")
+    const [body, setBody] = useState("")
+    const [credits, setCredits] = useState(`By ${user.name}`)
 
     useEffect(() => {
-        loadArticles()
-    }, [initialMode])
+        setMode(initialMode === "approvals" && !canApprove ? "queue" : initialMode)
+    }, [initialMode, canApprove])
 
-    const startEditing = (item: ArticleRecord) => {
-        setEditingId(item.id)
-        setTitle(item.title)
-        setDescription(item.description)
-        setArticleBody(item.article_body)
-        setCredits(item.credits)
-        setPhotoUrl(item.photo_url)
-        setPhotoFile(null)
-        setErrorMsg("")
-        setSuccessMsg("")
-        window.scrollTo({ top: 0, behavior: "smooth" })
-    }
+    useEffect(() => {
+        saveArticles(articles)
+    }, [articles])
 
-    const uploadPhotoIfNeeded = async (): Promise<string | null> => {
-        if (!photoFile) return photoUrl
-        if (!supabase) return photoUrl
+    useEffect(() => {
+        saveCloudAssets(contentAssets)
+    }, [contentAssets])
 
-        const ext = photoFile.name.split(".").pop()?.toLowerCase() || "jpg"
-        const safeName = `${user.rtaId.toLowerCase()}-${Date.now()}.${ext}`
-        const filePath = `articles/${safeName}`
+    useEffect(() => {
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key === CLOUD_ASSETS_STORAGE_KEY) {
+                setContentAssets(loadCloudAssets())
+            } else if (event.key === ARTICLES_STORAGE_KEY) {
+                setArticles(loadArticles())
+            }
+        }
+        window.addEventListener("storage", handleStorage)
+        return () => window.removeEventListener("storage", handleStorage)
+    }, [])
 
-        const { error: uploadError } = await supabase.storage
-            .from("portal-media")
-            .upload(filePath, photoFile, {
-                cacheControl: "3600",
-                upsert: false,
-            })
+    const handleCreateArticle = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!title.trim() || !body.trim()) return
 
-        if (uploadError) {
-            throw new Error(uploadError.message || "Photo upload failed.")
+        const newArticle: ArticleSubmission = {
+            id: `art-${Date.now()}`,
+            title: title.trim(),
+            summary: summary.trim() || "Submitted for editorial review.",
+            body: body.trim(),
+            photoUrl: photoUrl.trim() || undefined,
+            credits: credits.trim() || `By ${user.name}`,
+            author: user.name,
+            authorRtaId: user.rtaId,
+            submittedDate: formatDateUK(),
+            status: "In Review",
         }
 
-        const { data: publicUrlData } = supabase.storage
-            .from("portal-media")
-            .getPublicUrl(filePath)
-
-        return publicUrlData.publicUrl
+        setArticles((prev) => [newArticle, ...prev])
+        setTitle("")
+        setSummary("")
+        setPhotoUrl("")
+        setBody("")
+        setMode("queue")
     }
 
-    const resolveNextStatus = (
-        intent: "draft" | "submit" | "approve",
-        currentStatus?: ArticleStatus
-    ): ArticleStatus => {
-        if (intent === "approve") return "approved"
-        if (intent === "submit") return "pending_review"
-        if (
-            (currentStatus === "approved" || currentStatus === "scheduled") &&
-            isLeadership
-        ) {
-            return currentStatus
-        }
-        return "draft"
-    }
-
-    const handleSaveArticle = async (
-        intent: "draft" | "submit" | "approve"
+    const handleArticleDecision = (
+        articleId: string,
+        nextStatus: "Approved" | "Needs Tweaks"
     ) => {
-        setErrorMsg("")
-        setSuccessMsg("")
-
-        if (!title.trim()) {
-            setErrorMsg("Please add an article title.")
-            return
-        }
-        if (intent !== "draft" && !articleBody.trim()) {
-            setErrorMsg(
-                "Please add the article text before submitting for review."
+        let feedback: string | undefined
+        if (nextStatus === "Needs Tweaks") {
+            const existing =
+                articles.find((a) => a.id === articleId)?.reviewFeedback ?? ""
+            const input = window.prompt(
+                "Enter editorial tweak notes for the writer:",
+                existing
             )
-            return
-        }
-        if (!supabase) {
-            setErrorMsg("Database connection is unavailable.")
-            return
+            if (input === null) return
+            feedback = input.trim() || "Editorial tweaks requested."
         }
 
-        setSaving(true)
-        try {
-            const uploadedUrl = await uploadPhotoIfNeeded()
-            const existingItem = editingId
-                ? articles.find((a) => a.id === editingId)
-                : undefined
-            const nextStatus = resolveNextStatus(intent, existingItem?.status)
-
-            if (editingId) {
-                const { error: updateError } = await supabase
-                    .from("articles")
-                    .update({
-                        title: title.trim(),
-                        description: description.trim(),
-                        photo_url: uploadedUrl,
-                        article_body: articleBody.trim(),
-                        credits: credits.trim(),
-                        status: nextStatus,
-                        rejection_reason:
-                            nextStatus === "pending_review"
-                                ? ""
-                                : existingItem?.rejection_reason ?? "",
-                    })
-                    .eq("id", editingId)
-
-                if (updateError) {
-                    setErrorMsg(
-                        updateError.message || "Could not update article."
-                    )
-                    return
-                }
-
-                setSuccessMsg(
-                    `Saved — status is now ${STATUS_LABELS[nextStatus]}.`
-                )
-                setEditingId(null)
-            } else {
-                const { data: sessionData } = await supabase.auth.getSession()
-                const authUserId = sessionData.session?.user?.id ?? null
-
-                const { error: insertError } = await supabase
-                    .from("articles")
-                    .insert({
-                        author_id: authUserId,
-                        author_name: user.name,
-                        author_rta_id: user.rtaId,
-                        title: title.trim(),
-                        description: description.trim(),
-                        photo_url: uploadedUrl,
-                        article_body: articleBody.trim(),
-                        credits: credits.trim(),
-                        status: nextStatus,
-                    })
-
-                if (insertError) {
-                    setErrorMsg(
-                        insertError.message || "Could not submit article."
-                    )
-                    return
-                }
-
-                setSuccessMsg(
-                    `Article sent — status is now ${STATUS_LABELS[nextStatus]}.`
-                )
-                resetForm()
-            }
-
-            await loadArticles()
-        } catch (err) {
-            setErrorMsg(
-                err instanceof Error
-                    ? err.message
-                    : "Something went wrong while saving."
+        setArticles((prev) =>
+            prev.map((item) =>
+                item.id === articleId
+                    ? {
+                          ...item,
+                          status: nextStatus,
+                          reviewFeedback:
+                              nextStatus === "Needs Tweaks"
+                                  ? `${feedback} (${user.name})`
+                                  : undefined,
+                      }
+                    : item
             )
-        } finally {
-            setSaving(false)
-        }
+        )
     }
 
-    const handleApproveArticle = async (id: string) => {
-        if (!supabase) return
-        setActionBusyId(id)
-        setErrorMsg("")
-        const { error } = await supabase
-            .from("articles")
-            .update({ status: "approved", rejection_reason: "" })
-            .eq("id", id)
-
-        setActionBusyId(null)
-        if (!error) {
-            setSuccessMsg(
-                "Approved — tap 'Copy for Squarespace' to paste it into your website."
+    const handleAssetDecision = (
+        assetId: string,
+        nextStatus: "Approved" | "Needs Tweaks"
+    ) => {
+        let feedback: string | undefined
+        if (nextStatus === "Needs Tweaks") {
+            const existing =
+                contentAssets.find((a) => a.id === assetId)?.reviewFeedback ??
+                ""
+            const input = window.prompt(
+                "What tweaks are needed on this content submission?",
+                existing
             )
-            await loadArticles()
-        } else {
-            setErrorMsg(error.message || "Could not approve article.")
-        }
-    }
-
-    const openRejectBox = (item: ArticleRecord) => {
-        setSchedulingId(null)
-        setRejectingId(item.id)
-        setRejectReason(item.rejection_reason || "")
-        setErrorMsg("")
-    }
-
-    const handleConfirmReject = async (id: string) => {
-        if (!supabase) return
-        if (!rejectReason.trim()) {
-            setErrorMsg("Please enter a reason why this article is rejected.")
-            return
+            if (input === null) return
+            feedback = input.trim() || "Tweaks requested by leadership."
         }
 
-        setActionBusyId(id)
-        setErrorMsg("")
-        const { error } = await supabase
-            .from("articles")
-            .update({
-                status: "rejected",
-                rejection_reason: rejectReason.trim(),
-            })
-            .eq("id", id)
-
-        setActionBusyId(null)
-        if (!error) {
-            setRejectingId(null)
-            setRejectReason("")
-            setSuccessMsg("Rejected — reason saved for the writer.")
-            await loadArticles()
-        } else {
-            setErrorMsg(error.message || "Could not reject article.")
-        }
-    }
-
-    const openScheduleBox = (item: ArticleRecord) => {
-        setRejectingId(null)
-        setSchedulingId(item.id)
-        if (item.scheduled_for) {
-            const localIso = new Date(item.scheduled_for)
-                .toISOString()
-                .slice(0, 16)
-            setScheduleDateTime(localIso)
-        } else {
-            setScheduleDateTime("")
-        }
-        setErrorMsg("")
-    }
-
-    const handleConfirmSchedule = async (id: string) => {
-        if (!supabase) return
-        if (!scheduleDateTime) {
-            setErrorMsg("Please pick a date and time to schedule.")
-            return
-        }
-
-        setActionBusyId(id)
-        setErrorMsg("")
-        const isoDate = new Date(scheduleDateTime).toISOString()
-
-        const { error } = await supabase
-            .from("articles")
-            .update({
-                status: "scheduled",
-                scheduled_for: isoDate,
-                rejection_reason: "",
-            })
-            .eq("id", id)
-
-        setActionBusyId(null)
-        if (!error) {
-            setSchedulingId(null)
-            setScheduleDateTime("")
-            setSuccessMsg(
-                "Scheduled — tap 'Copy for Squarespace' when you set up the post."
+        setContentAssets((prev) =>
+            prev.map((asset) =>
+                asset.id === assetId
+                    ? {
+                          ...asset,
+                          status: nextStatus,
+                          reviewFeedback:
+                              nextStatus === "Needs Tweaks"
+                                  ? `${feedback} (${user.name})`
+                                  : undefined,
+                      }
+                    : asset
             )
-            await loadArticles()
-        } else {
-            setErrorMsg(error.message || "Could not schedule article.")
-        }
+        )
     }
 
-    const handleCopyForSquarespace = async (item: ArticleRecord) => {
-        const lines: string[] = [item.title.trim()]
+    const visibleAssets =
+        assetStatusFilter === "All"
+            ? contentAssets
+            : contentAssets.filter((a) => a.status === assetStatusFilter)
 
-        if (item.description?.trim()) {
-            lines.push("", item.description.trim())
-        }
-
-        if (item.article_body?.trim()) {
-            lines.push("", item.article_body.trim())
-        }
-
-        if (item.credits?.trim()) {
-            lines.push("", `Credits: ${item.credits.trim()}`)
-        }
-
-        const formattedText = lines.join("\n")
-
-        try {
-            await navigator.clipboard.writeText(formattedText)
-            setCopiedId(item.id)
-            setSuccessMsg(
-                "Copied! Paste into a new Squarespace blog post."
-            )
-            setTimeout(() => {
-                setCopiedId((prev) => (prev === item.id ? null : prev))
-            }, 3500)
-        } catch {
-            setErrorMsg(
-                "Could not copy automatically — open Review to select and copy the text."
-            )
-        }
+    const getStatusBadgeColor = (status: "In Review" | "Approved" | "Needs Tweaks") => {
+        if (status === "Approved") return blueColor
+        if (status === "Needs Tweaks") return redColor
+        return greyColor
     }
-
-    const getStatusBadgeStyle = (
-        status: ArticleStatus
-    ): React.CSSProperties => {
-        if (status === "approved" || status === "scheduled") {
-            return {
-                backgroundColor: "rgba(3, 78, 175, 0.12)",
-                color: blueColor,
-                border: "1px solid rgba(3, 78, 175, 0.28)",
-            }
-        }
-        if (status === "pending_review" || status === "rejected") {
-            return {
-                backgroundColor: "rgba(250, 52, 37, 0.12)",
-                color: redColor,
-                border: "1px solid rgba(250, 52, 37, 0.28)",
-            }
-        }
-        return {
-            backgroundColor: "rgba(0, 2, 1, 0.06)",
-            color: greyColor,
-            border: "1px solid rgba(0, 2, 1, 0.12)",
-        }
-    }
-
-    const headingLabel =
-        initialMode === "approvals"
-            ? "Editorial & Content Approvals"
-            : initialMode === "submit"
-              ? "Submit Article"
-              : "Article Queue"
-
-    const renderFormCard = (formTitle: string, showApproveButton: boolean) => (
-        <div
-            style={{
-                border: "1px solid rgba(0, 2, 1, 0.12)",
-                borderRadius: "16px",
-                padding: "20px",
-                backgroundColor: "#FFFFFF",
-                boxShadow: "0 8px 22px rgba(0, 2, 1, 0.04)",
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                    marginBottom: "14px",
-                    flexWrap: "wrap",
-                }}
-            >
-                <h3
-                    style={{
-                        margin: 0,
-                        fontSize: "17px",
-                        fontWeight: 700,
-                        color: blackColor,
-                    }}
-                >
-                    {editingId ? "Edit Article" : formTitle}
-                </h3>
-
-                {editingId && (
-                    <button
-                        type="button"
-                        onClick={resetForm}
-                        style={{
-                            border: "1px solid rgba(0, 2, 1, 0.15)",
-                            backgroundColor: "#F9FAFC",
-                            color: blackColor,
-                            borderRadius: "8px",
-                            padding: "6px 11px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                        }}
-                    >
-                        Cancel Edit
-                    </button>
-                )}
-            </div>
-
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "14px",
-                }}
-            >
-                <div>
-                    <label
-                        htmlFor="article-title"
-                        style={{
-                            display: "block",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: greyColor,
-                            marginBottom: "6px",
-                        }}
-                    >
-                        Title
-                    </label>
-                    <input
-                        id="article-title"
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Article headline"
-                        style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "11px 12px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(0, 2, 1, 0.16)",
-                            fontSize: "14px",
-                            color: blackColor,
-                        }}
-                    />
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="article-description"
-                        style={{
-                            display: "block",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: greyColor,
-                            marginBottom: "6px",
-                        }}
-                    >
-                        Description
-                    </label>
-                    <input
-                        id="article-description"
-                        type="text"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Short summary of the article"
-                        style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "11px 12px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(0, 2, 1, 0.16)",
-                            fontSize: "14px",
-                            color: blackColor,
-                        }}
-                    />
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="article-photo"
-                        style={{
-                            display: "block",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: greyColor,
-                            marginBottom: "6px",
-                        }}
-                    >
-                        Photo
-                    </label>
-                    <input
-                        id="article-photo"
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null
-                            setPhotoFile(file)
-                            if (file) {
-                                setPhotoUrl(URL.createObjectURL(file))
-                            }
-                        }}
-                        style={{
-                            width: "100%",
-                            fontSize: "13px",
-                            color: blackColor,
-                        }}
-                    />
-                    {photoUrl && (
-                        <img
-                            src={photoUrl}
-                            alt="Article preview"
-                            style={{
-                                marginTop: "10px",
-                                maxWidth: "100%",
-                                maxHeight: "200px",
-                                borderRadius: "10px",
-                                objectFit: "cover",
-                                border: "1px solid rgba(0, 2, 1, 0.1)",
-                            }}
-                        />
-                    )}
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="article-body"
-                        style={{
-                            display: "block",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: greyColor,
-                            marginBottom: "6px",
-                        }}
-                    >
-                        Article
-                    </label>
-                    <textarea
-                        id="article-body"
-                        rows={6}
-                        value={articleBody}
-                        onChange={(e) => setArticleBody(e.target.value)}
-                        placeholder="Write or paste the full article here..."
-                        style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "11px 12px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(0, 2, 1, 0.16)",
-                            fontSize: "14px",
-                            lineHeight: 1.55,
-                            color: blackColor,
-                            resize: "vertical",
-                            fontFamily: "inherit",
-                        }}
-                    />
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="article-credits"
-                        style={{
-                            display: "block",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: greyColor,
-                            marginBottom: "6px",
-                        }}
-                    >
-                        Credits
-                    </label>
-                    <input
-                        id="article-credits"
-                        type="text"
-                        value={credits}
-                        onChange={(e) => setCredits(e.target.value)}
-                        placeholder="e.g., Written by..."
-                        style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "11px 12px",
-                            borderRadius: "10px",
-                            border: "1px solid rgba(0, 2, 1, 0.16)",
-                            fontSize: "14px",
-                            color: blackColor,
-                        }}
-                    />
-                </div>
-
-                {errorMsg && (
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            color: redColor,
-                        }}
-                    >
-                        {errorMsg}
-                    </p>
-                )}
-
-                {successMsg && (
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color: blueColor,
-                        }}
-                    >
-                        {successMsg}
-                    </p>
-                )}
-
-                <div
-                    style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "10px",
-                        paddingTop: "4px",
-                    }}
-                >
-                    {initialMode === "submit" && !editingId ? (
-                        <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => handleSaveArticle("submit")}
-                            style={{
-                                padding: "12px 18px",
-                                borderRadius: "10px",
-                                border: "none",
-                                backgroundColor: blueColor,
-                                color: "#FFFFFF",
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                cursor: saving ? "not-allowed" : "pointer",
-                            }}
-                        >
-                            {saving ? "Submitting..." : "Submit Article"}
-                        </button>
-                    ) : (
-                        <>
-                            <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleSaveArticle("draft")}
-                                style={{
-                                    padding: "11px 16px",
-                                    borderRadius: "10px",
-                                    border: "1px solid rgba(0, 2, 1, 0.18)",
-                                    backgroundColor: "#FFFFFF",
-                                    color: blackColor,
-                                    fontSize: "13px",
-                                    fontWeight: 700,
-                                    cursor: saving ? "not-allowed" : "pointer",
-                                }}
-                            >
-                                {saving ? "Saving..." : "Save Draft"}
-                            </button>
-
-                            <button
-                                type="button"
-                                disabled={saving}
-                                onClick={() => handleSaveArticle("submit")}
-                                style={{
-                                    padding: "11px 16px",
-                                    borderRadius: "10px",
-                                    border: "none",
-                                    backgroundColor: blueColor,
-                                    color: "#FFFFFF",
-                                    fontSize: "13px",
-                                    fontWeight: 700,
-                                    cursor: saving ? "not-allowed" : "pointer",
-                                }}
-                            >
-                                {saving ? "Saving..." : "Submit for Review"}
-                            </button>
-
-                            {showApproveButton && (
-                                <button
-                                    type="button"
-                                    disabled={saving}
-                                    onClick={() => handleSaveArticle("approve")}
-                                    style={{
-                                        padding: "11px 16px",
-                                        borderRadius: "10px",
-                                        border: "none",
-                                        backgroundColor: blackColor,
-                                        color: "#FFFFFF",
-                                        fontSize: "13px",
-                                        fontWeight: 700,
-                                        cursor: saving
-                                            ? "not-allowed"
-                                            : "pointer",
-                                    }}
-                                >
-                                    {saving ? "Saving..." : "Save & Approve"}
-                                </button>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
-    )
 
     return (
         <div
             style={{
-                maxWidth: "760px",
+                maxWidth: "680px",
                 width: "100%",
                 margin: "0 auto",
-                padding: "20px 18px 44px",
+                padding: "18px 18px 32px",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
-                gap: "22px",
+                gap: "14px",
             }}
         >
             {/* Top Header */}
             <div
                 style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
+                    background: `linear-gradient(135deg, ${blackColor} 0%, #111827 65%, #071936 100%)`,
+                    color: "#FFFFFF",
+                    borderRadius: "18px",
+                    overflow: "hidden",
+                    boxShadow: "0 14px 28px rgba(0, 2, 1, 0.14)",
                 }}
             >
-                <div>
-                    <p
-                        style={{
-                            margin: 0,
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
-                            color: redColor,
-                        }}
-                    >
-                        {initialMode === "approvals"
-                            ? "Admin & Approvals"
-                            : "Editorial Desk"}
-                    </p>
-                    <h2
-                        style={{
-                            margin: "4px 0 0",
-                            fontSize: "22px",
-                            fontWeight: 800,
-                            color: blackColor,
-                        }}
-                    >
-                        {headingLabel}
-                    </h2>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={onBack}
-                    style={{
-                        padding: "9px 14px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 2, 1, 0.16)",
-                        backgroundColor: "#FFFFFF",
-                        color: blackColor,
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                    }}
-                >
-                    Back to Portal
-                </button>
-            </div>
-
-            {/* MODE 1: SUBMIT ARTICLE ONLY */}
-            {initialMode === "submit" &&
-                renderFormCard("Submit New Article", false)}
-
-            {/* MODE 2: ARTICLE QUEUE */}
-            {initialMode === "queue" && (
                 <div
                     style={{
+                        height: "4px",
+                        background: `linear-gradient(90deg, ${redColor} 0%, ${blueColor} 100%)`,
+                    }}
+                />
+                <div
+                    style={{
+                        padding: "18px 20px 20px",
                         display: "flex",
                         flexDirection: "column",
                         gap: "12px",
                     }}
                 >
-                    {editingId && renderFormCard("Edit Article", false)}
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={onBack}
+                            style={{
+                                background: "rgba(255,255,255,0.12)",
+                                border: "none",
+                                color: "#FFFFFF",
+                                padding: "6px 12px",
+                                borderRadius: "8px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                            }}
+                        >
+                            ← Back to Portal
+                        </button>
+                        <span
+                            style={{
+                                fontSize: "11px",
+                                fontWeight: 800,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                color:
+                                    mode === "approvals" ? redColor : "#84B6FF",
+                            }}
+                        >
+                            {mode === "approvals"
+                                ? "Admin & Approvals"
+                                : "Editorial Desk"}
+                        </span>
+                    </div>
 
-                    {successMsg && !editingId && (
-                        <p
+                    <div>
+                        <h1
                             style={{
                                 margin: 0,
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                color: blueColor,
+                                fontSize: "20px",
+                                fontWeight: 800,
+                                letterSpacing: "-0.01em",
                             }}
                         >
-                            {successMsg}
-                        </p>
-                    )}
-
-                    {loading ? (
-                        <p style={{ color: greyColor, fontSize: "14px" }}>
-                            Loading your articles...
-                        </p>
-                    ) : articles.length === 0 ? (
-                        <div
+                            {mode === "approvals"
+                                ? "Editorial & Content Approvals"
+                                : mode === "submit"
+                                  ? "Submit Article"
+                                  : "Article Queue"}
+                        </h1>
+                        <p
                             style={{
-                                border: "1px solid rgba(0, 2, 1, 0.1)",
-                                borderRadius: "14px",
-                                padding: "18px",
-                                backgroundColor: "#FFFFFF",
-                                color: greyColor,
-                                fontSize: "14px",
+                                margin: "4px 0 0",
+                                fontSize: "12px",
+                                color: "rgba(255,255,255,0.72)",
                             }}
                         >
-                            You haven&apos;t submitted any articles yet. Use{" "}
-                            <strong>Submit Article</strong> from the portal to
-                            send one in.
-                        </div>
-                    ) : (
-                        articles.map((item) => (
+                            {mode === "approvals"
+                                ? "Review journalism copy and content creator asset links, approve items, or request tweaks"
+                                : "Track article status, submit copy, or jump into approvals"}
+                        </p>
+                    </div>
+
+                    {/* Top Mode Switcher */}
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {(
+                            [
+                                { id: "queue", label: "Article Queue" },
+                                { id: "submit", label: "Submit Article" },
+                                ...(canApprove
+                                    ? [
+                                          {
+                                              id: "approvals",
+                                              label: "Approvals",
+                                          },
+                                      ]
+                                    : []),
+                            ] as const
+                        ).map((tab) => {
+                            const active = mode === tab.id
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setMode(tab.id)}
+                                    style={{
+                                        padding: "7px 13px",
+                                        borderRadius: "9px",
+                                        border: "none",
+                                        backgroundColor: active
+                                            ? "#FFFFFF"
+                                            : "rgba(255,255,255,0.12)",
+                                        color: active ? blackColor : "#FFFFFF",
+                                        fontSize: "12px",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {tab.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* MODE 1: ARTICLE QUEUE */}
+            {mode === "queue" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "11px" }}>
+                    {articles.map((article) => (
+                        <div
+                            key={article.id}
+                            style={{
+                                backgroundColor: "#FFFFFF",
+                                border: "1px solid rgba(0, 2, 1, 0.08)",
+                                borderRadius: "16px",
+                                padding: "16px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "8px",
+                                boxShadow: "0 6px 18px rgba(0, 2, 1, 0.04)",
+                            }}
+                        >
                             <div
-                                key={item.id}
                                 style={{
-                                    border: "1px solid rgba(0, 2, 1, 0.12)",
-                                    borderRadius: "14px",
-                                    padding: "18px",
-                                    backgroundColor: "#FFFFFF",
                                     display: "flex",
-                                    flexDirection: "column",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
                                     gap: "10px",
                                 }}
                             >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        gap: "10px",
-                                        flexWrap: "wrap",
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            padding: "4px 10px",
-                                            borderRadius: "999px",
-                                            fontSize: "11px",
-                                            fontWeight: 700,
-                                            ...getStatusBadgeStyle(item.status),
-                                        }}
-                                    >
-                                        {STATUS_LABELS[item.status]}
-                                    </span>
-
-                                    <span
-                                        style={{
-                                            fontSize: "12px",
-                                            color: greyColor,
-                                        }}
-                                    >
-                                        {item.author_rta_id}
-                                    </span>
-                                </div>
-
-                                <h4
-                                    style={{
-                                        margin: 0,
-                                        fontSize: "17px",
-                                        fontWeight: 700,
-                                        color: blackColor,
-                                    }}
-                                >
-                                    {item.title}
-                                </h4>
-
-                                {item.description && (
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            fontSize: "13px",
-                                            color: greyColor,
-                                            lineHeight: 1.45,
-                                        }}
-                                    >
-                                        {item.description}
-                                    </p>
-                                )}
-
-                                {item.status === "rejected" &&
-                                    item.rejection_reason && (
-                                        <div
-                                            style={{
-                                                padding: "10px 12px",
-                                                borderRadius: "10px",
-                                                backgroundColor:
-                                                    "rgba(250, 52, 37, 0.08)",
-                                                border:
-                                                    "1px solid rgba(250, 52, 37, 0.25)",
-                                                fontSize: "13px",
-                                                color: blackColor,
-                                            }}
-                                        >
-                                            <strong style={{ color: redColor }}>
-                                                Reason for rejection:{" "}
-                                            </strong>
-                                            {item.rejection_reason}
-                                        </div>
-                                    )}
-
-                                {item.status === "scheduled" &&
-                                    item.scheduled_for && (
-                                        <p
-                                            style={{
-                                                margin: 0,
-                                                fontSize: "12px",
-                                                fontWeight: 600,
-                                                color: blueColor,
-                                            }}
-                                        >
-                                            Scheduled for:{" "}
-                                            {new Date(
-                                                item.scheduled_for
-                                            ).toLocaleString()}
-                                        </p>
-                                    )}
-
-                                {item.photo_url && (
-                                    <img
-                                        src={item.photo_url}
-                                        alt={item.title}
-                                        style={{
-                                            maxWidth: "100%",
-                                            maxHeight: "220px",
-                                            borderRadius: "10px",
-                                            objectFit: "cover",
-                                        }}
-                                    />
-                                )}
-
-                                {item.article_body && (
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            fontSize: "14px",
-                                            color: blackColor,
-                                            lineHeight: 1.6,
-                                            whiteSpace: "pre-line",
-                                        }}
-                                    >
-                                        {item.article_body}
-                                    </p>
-                                )}
-
-                                {item.credits && (
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            fontSize: "12px",
-                                            fontWeight: 600,
-                                            color: greyColor,
-                                        }}
-                                    >
-                                        Credits: {item.credits}
-                                    </p>
-                                )}
-
                                 <div>
-                                    <button
-                                        type="button"
-                                        onClick={() => startEditing(item)}
+                                    <div
                                         style={{
-                                            padding: "8px 13px",
-                                            borderRadius: "8px",
-                                            border:
-                                                "1px solid rgba(0, 2, 1, 0.16)",
-                                            backgroundColor: "#FFFFFF",
+                                            fontSize: "15px",
+                                            fontWeight: 800,
                                             color: blackColor,
-                                            fontSize: "12px",
-                                            fontWeight: 600,
-                                            cursor: "pointer",
                                         }}
                                     >
-                                        Edit Article
-                                    </button>
+                                        {article.title}
+                                    </div>
+                                    <div
+                                        style={{
+                                            fontSize: "12px",
+                                            color: greyColor,
+                                            marginTop: "2px",
+                                        }}
+                                    >
+                                        {article.author} ({article.authorRtaId}) •{" "}
+                                        {article.submittedDate}
+                                    </div>
                                 </div>
+
+                                <span
+                                    style={{
+                                        backgroundColor: getStatusBadgeColor(
+                                            article.status
+                                        ),
+                                        color: "#FFFFFF",
+                                        fontSize: "11px",
+                                        fontWeight: 800,
+                                        padding: "4px 10px",
+                                        borderRadius: "999px",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    {article.status}
+                                </span>
                             </div>
-                        ))
-                    )}
+
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: "13px",
+                                    color: "#374151",
+                                    lineHeight: 1.45,
+                                }}
+                            >
+                                {article.summary}
+                            </p>
+
+                            {article.status === "Needs Tweaks" &&
+                                article.reviewFeedback && (
+                                    <div
+                                        style={{
+                                            backgroundColor: "#FEF2F2",
+                                            borderLeft: `3px solid ${redColor}`,
+                                            padding: "9px 12px",
+                                            borderRadius: "8px",
+                                            fontSize: "12px",
+                                            color: "#991B1B",
+                                        }}
+                                    >
+                                        <strong>Tweaks requested:</strong>{" "}
+                                        {article.reviewFeedback}
+                                    </div>
+                                )}
+                        </div>
+                    ))}
                 </div>
             )}
 
-            {/* MODE 3: EDITORIAL & CONTENT APPROVALS */}
-            {initialMode === "approvals" && (
-                <div
+            {/* MODE 2: SUBMIT ARTICLE */}
+            {mode === "submit" && (
+                <form
+                    onSubmit={handleCreateArticle}
                     style={{
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid rgba(0, 2, 1, 0.1)",
+                        borderRadius: "16px",
+                        padding: "16px",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "16px",
+                        gap: "10px",
+                        boxShadow: "0 8px 20px rgba(0, 2, 1, 0.05)",
                     }}
                 >
+                    <div
+                        style={{
+                            fontSize: "14px",
+                            fontWeight: 800,
+                            color: blackColor,
+                        }}
+                    >
+                        New Article Submission
+                    </div>
+
+                    <input
+                        type="text"
+                        placeholder="Headline / Article Title"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        required
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #D1D5DB",
+                            fontSize: "13px",
+                        }}
+                    />
+
+                    <input
+                        type="text"
+                        placeholder="Short standfirst / summary"
+                        value={summary}
+                        onChange={(e) => setSummary(e.target.value)}
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #D1D5DB",
+                            fontSize: "13px",
+                        }}
+                    />
+
+                    <input
+                        type="text"
+                        placeholder="Lead photo URL (optional)"
+                        value={photoUrl}
+                        onChange={(e) => setPhotoUrl(e.target.value)}
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #D1D5DB",
+                            fontSize: "13px",
+                        }}
+                    />
+
+                    <input
+                        type="text"
+                        placeholder="Credits (e.g. Words & photos by...)"
+                        value={credits}
+                        onChange={(e) => setCredits(e.target.value)}
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #D1D5DB",
+                            fontSize: "13px",
+                        }}
+                    />
+
+                    <textarea
+                        placeholder="Write or paste article copy..."
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        rows={6}
+                        required
+                        style={{
+                            padding: "10px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #D1D5DB",
+                            fontSize: "13px",
+                            fontFamily: "inherit",
+                        }}
+                    />
+
+                    <button
+                        type="submit"
+                        style={{
+                            backgroundColor: blueColor,
+                            color: "#FFFFFF",
+                            border: "none",
+                            borderRadius: "10px",
+                            padding: "11px",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Submit for Editorial Review
+                    </button>
+                </form>
+            )}
+
+            {/* MODE 3: EDITORIAL & CONTENT APPROVALS */}
+            {mode === "approvals" && canApprove && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {/* Journalism vs Content Creation Tabs */}
                     <div
                         style={{
                             display: "grid",
@@ -1111,20 +616,20 @@ export function ArticlesView({
                     >
                         <button
                             type="button"
-                            onClick={() => setApprovalDept("journalism")}
+                            onClick={() => setApprovalTab("journalism")}
                             style={{
-                                padding: "12px 14px",
+                                padding: "11px 14px",
                                 borderRadius: "12px",
                                 border:
-                                    approvalDept === "journalism"
-                                        ? "none"
-                                        : "1px solid rgba(0, 2, 1, 0.14)",
+                                    approvalTab === "journalism"
+                                        ? `1px solid ${blackColor}`
+                                        : "1px solid rgba(0,2,1,0.1)",
                                 backgroundColor:
-                                    approvalDept === "journalism"
-                                        ? redColor
+                                    approvalTab === "journalism"
+                                        ? blackColor
                                         : "#FFFFFF",
                                 color:
-                                    approvalDept === "journalism"
+                                    approvalTab === "journalism"
                                         ? "#FFFFFF"
                                         : blackColor,
                                 fontSize: "13px",
@@ -1132,25 +637,25 @@ export function ArticlesView({
                                 cursor: "pointer",
                             }}
                         >
-                            Journalism
+                            Journalism ({articles.length})
                         </button>
 
                         <button
                             type="button"
-                            onClick={() => setApprovalDept("content")}
+                            onClick={() => setApprovalTab("content")}
                             style={{
-                                padding: "12px 14px",
+                                padding: "11px 14px",
                                 borderRadius: "12px",
                                 border:
-                                    approvalDept === "content"
-                                        ? "none"
-                                        : "1px solid rgba(0, 2, 1, 0.14)",
+                                    approvalTab === "content"
+                                        ? `1px solid ${blueColor}`
+                                        : "1px solid rgba(0,2,1,0.1)",
                                 backgroundColor:
-                                    approvalDept === "content"
+                                    approvalTab === "content"
                                         ? blueColor
                                         : "#FFFFFF",
                                 color:
-                                    approvalDept === "content"
+                                    approvalTab === "content"
                                         ? "#FFFFFF"
                                         : blackColor,
                                 fontSize: "13px",
@@ -1158,918 +663,414 @@ export function ArticlesView({
                                 cursor: "pointer",
                             }}
                         >
-                            Content Creation
+                            Content Creation ({contentAssets.length})
                         </button>
                     </div>
 
-                    {errorMsg && (
-                        <p
-                            style={{
-                                margin: 0,
-                                fontSize: "13px",
-                                fontWeight: 600,
-                                color: redColor,
-                            }}
-                        >
-                            {errorMsg}
-                        </p>
-                    )}
-
-                    {successMsg && (
-                        <p
-                            style={{
-                                margin: 0,
-                                fontSize: "13px",
-                                fontWeight: 700,
-                                color: blueColor,
-                            }}
-                        >
-                            {successMsg}
-                        </p>
-                    )}
-
-                    {approvalDept === "journalism" ? (
+                    {/* JOURNALISM APPROVALS */}
+                    {approvalTab === "journalism" && (
                         <div
                             style={{
                                 display: "flex",
                                 flexDirection: "column",
-                                gap: "14px",
+                                gap: "11px",
                             }}
                         >
-                            {editingId &&
-                                renderFormCard(
-                                    "Edit Journalism Submission",
-                                    isLeadership
-                                )}
-
-                            {loading ? (
-                                <p style={{ color: greyColor, fontSize: "14px" }}>
-                                    Loading journalism submissions...
-                                </p>
-                            ) : articles.length === 0 ? (
+                            {articles.map((article) => (
                                 <div
+                                    key={article.id}
                                     style={{
-                                        border: "1px solid rgba(0, 2, 1, 0.1)",
-                                        borderRadius: "14px",
-                                        padding: "18px",
                                         backgroundColor: "#FFFFFF",
-                                        color: greyColor,
-                                        fontSize: "14px",
+                                        border: "1px solid rgba(0, 2, 1, 0.09)",
+                                        borderRadius: "16px",
+                                        padding: "16px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "8px",
                                     }}
                                 >
-                                    No journalism submissions yet.
-                                </div>
-                            ) : (
-                                articles.map((item) => {
-                                    const isRejectOpen = rejectingId === item.id
-                                    const isScheduleOpen =
-                                        schedulingId === item.id
-                                    const isBusy = actionBusyId === item.id
-                                    const isReadyForSite =
-                                        item.status === "approved" ||
-                                        item.status === "scheduled"
-                                    const isCopied = copiedId === item.id
-
-                                    return (
-                                        <div
-                                            key={item.id}
-                                            style={{
-                                                border:
-                                                    "1px solid rgba(0, 2, 1, 0.12)",
-                                                borderRadius: "14px",
-                                                padding: "18px",
-                                                backgroundColor: "#FFFFFF",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                gap: "10px",
-                                            }}
-                                        >
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "flex-start",
+                                            gap: "10px",
+                                        }}
+                                    >
+                                        <div>
                                             <div
                                                 style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent:
-                                                        "space-between",
-                                                    gap: "10px",
-                                                    flexWrap: "wrap",
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        padding: "4px 10px",
-                                                        borderRadius: "999px",
-                                                        fontSize: "11px",
-                                                        fontWeight: 700,
-                                                        ...getStatusBadgeStyle(
-                                                            item.status
-                                                        ),
-                                                    }}
-                                                >
-                                                    {STATUS_LABELS[item.status]}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        fontSize: "12px",
-                                                        color: greyColor,
-                                                    }}
-                                                >
-                                                    {item.author_name} (
-                                                    {item.author_rta_id})
-                                                </span>
-                                            </div>
-
-                                            <h4
-                                                style={{
-                                                    margin: 0,
-                                                    fontSize: "17px",
-                                                    fontWeight: 700,
+                                                    fontSize: "15px",
+                                                    fontWeight: 800,
                                                     color: blackColor,
                                                 }}
                                             >
-                                                {item.title}
-                                            </h4>
-
-                                            {item.description && (
-                                                <p
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "13px",
-                                                        color: greyColor,
-                                                        lineHeight: 1.45,
-                                                    }}
-                                                >
-                                                    {item.description}
-                                                </p>
-                                            )}
-
-                                            {item.scheduled_for && (
-                                                <p
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "12px",
-                                                        fontWeight: 600,
-                                                        color: blueColor,
-                                                    }}
-                                                >
-                                                    Scheduled:{" "}
-                                                    {new Date(
-                                                        item.scheduled_for
-                                                    ).toLocaleString()}
-                                                </p>
-                                            )}
-
-                                            {item.rejection_reason && (
-                                                <p
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "12px",
-                                                        fontWeight: 600,
-                                                        color: redColor,
-                                                    }}
-                                                >
-                                                    Rejection reason:{" "}
-                                                    {item.rejection_reason}
-                                                </p>
-                                            )}
-
-                                            {item.credits && (
-                                                <p
-                                                    style={{
-                                                        margin: 0,
-                                                        fontSize: "12px",
-                                                        fontWeight: 600,
-                                                        color: greyColor,
-                                                    }}
-                                                >
-                                                    Credits: {item.credits}
-                                                </p>
-                                            )}
-
-                                            {/* Admin Action Buttons */}
+                                                {article.title}
+                                            </div>
                                             <div
                                                 style={{
-                                                    display: "flex",
-                                                    gap: "8px",
-                                                    flexWrap: "wrap",
-                                                    paddingTop: "4px",
+                                                    fontSize: "12px",
+                                                    color: greyColor,
                                                 }}
                                             >
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setReviewingArticle(item)
-                                                    }
-                                                    style={{
-                                                        padding: "8px 13px",
-                                                        borderRadius: "8px",
-                                                        border:
-                                                            "1px solid rgba(0, 2, 1, 0.16)",
-                                                        backgroundColor:
-                                                            "#F9FAFC",
-                                                        color: blackColor,
-                                                        fontSize: "12px",
-                                                        fontWeight: 700,
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Review
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        startEditing(item)
-                                                    }
-                                                    style={{
-                                                        padding: "8px 13px",
-                                                        borderRadius: "8px",
-                                                        border:
-                                                            "1px solid rgba(0, 2, 1, 0.16)",
-                                                        backgroundColor:
-                                                            "#FFFFFF",
-                                                        color: blackColor,
-                                                        fontSize: "12px",
-                                                        fontWeight: 700,
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Edit
-                                                </button>
-
-                                                {isLeadership && (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            disabled={isBusy}
-                                                            onClick={() =>
-                                                                openScheduleBox(
-                                                                    item
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "8px 13px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "1px solid rgba(3, 78, 175, 0.3)",
-                                                                backgroundColor:
-                                                                    "rgba(3, 78, 175, 0.08)",
-                                                                color:
-                                                                    blueColor,
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 700,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Schedule
-                                                        </button>
-
-                                                        {item.status !==
-                                                            "approved" && (
-                                                            <button
-                                                                type="button"
-                                                                disabled={
-                                                                    isBusy
-                                                                }
-                                                                onClick={() =>
-                                                                    handleApproveArticle(
-                                                                        item.id
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    padding:
-                                                                        "8px 13px",
-                                                                    borderRadius:
-                                                                        "8px",
-                                                                    border:
-                                                                        "none",
-                                                                    backgroundColor:
-                                                                        blueColor,
-                                                                    color:
-                                                                        "#FFFFFF",
-                                                                    fontSize:
-                                                                        "12px",
-                                                                    fontWeight: 700,
-                                                                    cursor:
-                                                                        "pointer",
-                                                                }}
-                                                            >
-                                                                Approve
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            type="button"
-                                                            disabled={isBusy}
-                                                            onClick={() =>
-                                                                openRejectBox(
-                                                                    item
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "8px 13px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "none",
-                                                                backgroundColor:
-                                                                    redColor,
-                                                                color:
-                                                                    "#FFFFFF",
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 700,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
+                                                By {article.author} •{" "}
+                                                {article.submittedDate}
                                             </div>
-
-                                            {/* Squarespace Publish Helper Bar */}
-                                            {isReadyForSite && (
-                                                <div
-                                                    style={{
-                                                        marginTop: "4px",
-                                                        padding: "10px 12px",
-                                                        borderRadius: "10px",
-                                                        backgroundColor:
-                                                            "#F4F7FC",
-                                                        border:
-                                                            "1px solid rgba(3, 78, 175, 0.2)",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent:
-                                                            "space-between",
-                                                        gap: "10px",
-                                                        flexWrap: "wrap",
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            fontSize: "12px",
-                                                            fontWeight: 700,
-                                                            color: blackColor,
-                                                        }}
-                                                    >
-                                                        Website Publishing:
-                                                    </span>
-
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            gap: "8px",
-                                                            flexWrap: "wrap",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleCopyForSquarespace(
-                                                                    item
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "7px 12px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "none",
-                                                                backgroundColor:
-                                                                    isCopied
-                                                                        ? blueColor
-                                                                        : blackColor,
-                                                                color:
-                                                                    "#FFFFFF",
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 700,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            {isCopied
-                                                                ? "Copied!"
-                                                                : "Copy for Squarespace"}
-                                                        </button>
-
-                                                        {item.photo_url && (
-                                                            <a
-                                                                href={
-                                                                    item.photo_url
-                                                                }
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                style={{
-                                                                    padding:
-                                                                        "7px 12px",
-                                                                    borderRadius:
-                                                                        "8px",
-                                                                    border:
-                                                                        "1px solid rgba(0, 2, 1, 0.16)",
-                                                                    backgroundColor:
-                                                                        "#FFFFFF",
-                                                                    color:
-                                                                        blackColor,
-                                                                    fontSize:
-                                                                        "12px",
-                                                                    fontWeight: 700,
-                                                                    textDecoration:
-                                                                        "none",
-                                                                }}
-                                                            >
-                                                                Open Photo
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Reject Reason Box */}
-                                            {isRejectOpen && (
-                                                <div
-                                                    style={{
-                                                        marginTop: "6px",
-                                                        padding: "14px",
-                                                        borderRadius: "12px",
-                                                        backgroundColor:
-                                                            "rgba(250, 52, 37, 0.05)",
-                                                        border:
-                                                            "1px solid rgba(250, 52, 37, 0.28)",
-                                                        display: "flex",
-                                                        flexDirection:
-                                                            "column",
-                                                        gap: "10px",
-                                                    }}
-                                                >
-                                                    <label
-                                                        htmlFor={`reject-reason-${item.id}`}
-                                                        style={{
-                                                            fontSize: "12px",
-                                                            fontWeight: 700,
-                                                            color: redColor,
-                                                        }}
-                                                    >
-                                                        Reason why this is
-                                                        rejected
-                                                    </label>
-                                                    <textarea
-                                                        id={`reject-reason-${item.id}`}
-                                                        rows={3}
-                                                        value={rejectReason}
-                                                        onChange={(e) =>
-                                                            setRejectReason(
-                                                                e.target.value
-                                                            )
-                                                        }
-                                                        placeholder="Write what needs fixing or why it wasn't approved..."
-                                                        style={{
-                                                            width: "100%",
-                                                            boxSizing:
-                                                                "border-box",
-                                                            padding:
-                                                                "10px 12px",
-                                                            borderRadius:
-                                                                "8px",
-                                                            border:
-                                                                "1px solid rgba(0, 2, 1, 0.16)",
-                                                            fontSize: "13px",
-                                                            fontFamily:
-                                                                "inherit",
-                                                            backgroundColor:
-                                                                "#FFFFFF",
-                                                        }}
-                                                    />
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            gap: "8px",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            disabled={isBusy}
-                                                            onClick={() =>
-                                                                handleConfirmReject(
-                                                                    item.id
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "8px 14px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "none",
-                                                                backgroundColor:
-                                                                    redColor,
-                                                                color:
-                                                                    "#FFFFFF",
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 700,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Confirm Reject
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setRejectingId(
-                                                                    null
-                                                                )
-                                                                setRejectReason(
-                                                                    ""
-                                                                )
-                                                            }}
-                                                            style={{
-                                                                padding:
-                                                                    "8px 12px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "1px solid rgba(0, 2, 1, 0.15)",
-                                                                backgroundColor:
-                                                                    "#FFFFFF",
-                                                                color:
-                                                                    blackColor,
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 600,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Schedule Date/Time Box */}
-                                            {isScheduleOpen && (
-                                                <div
-                                                    style={{
-                                                        marginTop: "6px",
-                                                        padding: "14px",
-                                                        borderRadius: "12px",
-                                                        backgroundColor:
-                                                            "rgba(3, 78, 175, 0.05)",
-                                                        border:
-                                                            "1px solid rgba(3, 78, 175, 0.25)",
-                                                        display: "flex",
-                                                        flexDirection:
-                                                            "column",
-                                                        gap: "10px",
-                                                    }}
-                                                >
-                                                    <label
-                                                        htmlFor={`schedule-dt-${item.id}`}
-                                                        style={{
-                                                            fontSize: "12px",
-                                                            fontWeight: 700,
-                                                            color: blueColor,
-                                                        }}
-                                                    >
-                                                        Schedule publish date &
-                                                        time
-                                                    </label>
-                                                    <input
-                                                        id={`schedule-dt-${item.id}`}
-                                                        type="datetime-local"
-                                                        value={scheduleDateTime}
-                                                        onChange={(e) =>
-                                                            setScheduleDateTime(
-                                                                e.target.value
-                                                            )
-                                                        }
-                                                        style={{
-                                                            padding:
-                                                                "9px 12px",
-                                                            borderRadius:
-                                                                "8px",
-                                                            border:
-                                                                "1px solid rgba(0, 2, 1, 0.16)",
-                                                            fontSize: "13px",
-                                                            backgroundColor:
-                                                                "#FFFFFF",
-                                                            maxWidth: "260px",
-                                                        }}
-                                                    />
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            gap: "8px",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            disabled={isBusy}
-                                                            onClick={() =>
-                                                                handleConfirmSchedule(
-                                                                    item.id
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "8px 14px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "none",
-                                                                backgroundColor:
-                                                                    blueColor,
-                                                                color:
-                                                                    "#FFFFFF",
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 700,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Save Schedule
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setSchedulingId(
-                                                                    null
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "8px 12px",
-                                                                borderRadius:
-                                                                    "8px",
-                                                                border:
-                                                                    "1px solid rgba(0, 2, 1, 0.15)",
-                                                                backgroundColor:
-                                                                    "#FFFFFF",
-                                                                color:
-                                                                    blackColor,
-                                                                fontSize:
-                                                                    "12px",
-                                                                fontWeight: 600,
-                                                                cursor:
-                                                                    "pointer",
-                                                            }}
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
-                                    )
-                                })
-                            )}
-                        </div>
-                    ) : (
-                        <div
-                            style={{
-                                border: "1px solid rgba(0, 2, 1, 0.12)",
-                                borderRadius: "14px",
-                                padding: "20px",
-                                backgroundColor: "#FFFFFF",
-                            }}
-                        >
-                            <h3
-                                style={{
-                                    margin: "0 0 6px",
-                                    fontSize: "17px",
-                                    fontWeight: 700,
-                                    color: blackColor,
-                                }}
-                            >
-                                Content Creation Approvals
-                            </h3>
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: "13px",
-                                    color: greyColor,
-                                    lineHeight: 1.5,
-                                }}
-                            >
-                                Video clips, reels, graphics, and social edits
-                                awaiting review will appear here once content
-                                submissions are connected.
-                            </p>
+                                        <span
+                                            style={{
+                                                backgroundColor:
+                                                    getStatusBadgeColor(
+                                                        article.status
+                                                    ),
+                                                color: "#FFFFFF",
+                                                fontSize: "11px",
+                                                fontWeight: 800,
+                                                padding: "4px 10px",
+                                                borderRadius: "999px",
+                                            }}
+                                        >
+                                            {article.status}
+                                        </span>
+                                    </div>
+
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "13px",
+                                            color: "#374151",
+                                            lineHeight: 1.45,
+                                        }}
+                                    >
+                                        {article.body}
+                                    </p>
+
+                                    {article.reviewFeedback && (
+                                        <div
+                                            style={{
+                                                backgroundColor: "#FEF2F2",
+                                                borderLeft: `3px solid ${redColor}`,
+                                                padding: "8px 11px",
+                                                borderRadius: "6px",
+                                                fontSize: "12px",
+                                                color: "#991B1B",
+                                            }}
+                                        >
+                                            <strong>Tweaks note:</strong>{" "}
+                                            {article.reviewFeedback}
+                                        </div>
+                                    )}
+
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            gap: "8px",
+                                            marginTop: "4px",
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleArticleDecision(
+                                                    article.id,
+                                                    "Approved"
+                                                )
+                                            }
+                                            style={{
+                                                padding: "7px 13px",
+                                                borderRadius: "8px",
+                                                border: "none",
+                                                backgroundColor: blueColor,
+                                                color: "#FFFFFF",
+                                                fontSize: "12px",
+                                                fontWeight: 700,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Approve
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleArticleDecision(
+                                                    article.id,
+                                                    "Needs Tweaks"
+                                                )
+                                            }
+                                            style={{
+                                                padding: "7px 13px",
+                                                borderRadius: "8px",
+                                                border: `1px solid ${redColor}`,
+                                                backgroundColor: "#FFFFFF",
+                                                color: redColor,
+                                                fontSize: "12px",
+                                                fontWeight: 700,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Request Tweaks
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
-                </div>
-            )}
 
-            {/* Full Article Review Modal */}
-            {reviewingArticle && (
-                <div
-                    onClick={() => setReviewingArticle(null)}
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        backgroundColor: "rgba(0, 2, 1, 0.58)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "16px",
-                        zIndex: 40,
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            width: "100%",
-                            maxWidth: "620px",
-                            maxHeight: "85dvh",
-                            overflowY: "auto",
-                            backgroundColor: "#FFFFFF",
-                            borderRadius: "18px",
-                            padding: "22px",
-                            boxSizing: "border-box",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "12px",
-                        }}
-                    >
+                    {/* CONTENT CREATION APPROVALS */}
+                    {approvalTab === "content" && (
                         <div
                             style={{
                                 display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: "10px",
+                                flexDirection: "column",
+                                gap: "11px",
                             }}
                         >
-                            <span
-                                style={{
-                                    padding: "4px 10px",
-                                    borderRadius: "999px",
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    ...getStatusBadgeStyle(
-                                        reviewingArticle.status
-                                    ),
-                                }}
-                            >
-                                {STATUS_LABELS[reviewingArticle.status]}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setReviewingArticle(null)}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    fontSize: "13px",
-                                    fontWeight: 700,
-                                    color: greyColor,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Close
-                            </button>
-                        </div>
-
-                        <h3
-                            style={{
-                                margin: 0,
-                                fontSize: "20px",
-                                fontWeight: 800,
-                                color: blackColor,
-                            }}
-                        >
-                            {reviewingArticle.title}
-                        </h3>
-
-                        <p
-                            style={{
-                                margin: 0,
-                                fontSize: "12px",
-                                color: greyColor,
-                            }}
-                        >
-                            By {reviewingArticle.author_name} (
-                            {reviewingArticle.author_rta_id})
-                        </p>
-
-                        {reviewingArticle.description && (
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: "14px",
-                                    fontWeight: 600,
-                                    color: blackColor,
-                                }}
-                            >
-                                {reviewingArticle.description}
-                            </p>
-                        )}
-
-                        {reviewingArticle.photo_url && (
-                            <img
-                                src={reviewingArticle.photo_url}
-                                alt={reviewingArticle.title}
-                                style={{
-                                    maxWidth: "100%",
-                                    maxHeight: "260px",
-                                    borderRadius: "12px",
-                                    objectFit: "cover",
-                                }}
-                            />
-                        )}
-
-                        <div
-                            style={{
-                                fontSize: "14px",
-                                lineHeight: 1.65,
-                                color: blackColor,
-                                whiteSpace: "pre-line",
-                            }}
-                        >
-                            {reviewingArticle.article_body}
-                        </div>
-
-                        {reviewingArticle.credits && (
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    color: greyColor,
-                                }}
-                            >
-                                Credits: {reviewingArticle.credits}
-                            </p>
-                        )}
-
-                        {(reviewingArticle.status === "approved" ||
-                            reviewingArticle.status === "scheduled") && (
+                            {/* Status Filter Pills */}
                             <div
                                 style={{
                                     display: "flex",
-                                    gap: "8px",
+                                    gap: "7px",
                                     flexWrap: "wrap",
-                                    paddingTop: "6px",
                                 }}
                             >
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        handleCopyForSquarespace(
-                                            reviewingArticle
-                                        )
-                                    }
+                                {(
+                                    [
+                                        "In Review",
+                                        "Needs Tweaks",
+                                        "Approved",
+                                        "All",
+                                    ] as const
+                                ).map((status) => {
+                                    const active = assetStatusFilter === status
+                                    const count =
+                                        status === "All"
+                                            ? contentAssets.length
+                                            : contentAssets.filter(
+                                                  (a) => a.status === status
+                                              ).length
+
+                                    return (
+                                        <button
+                                            key={status}
+                                            type="button"
+                                            onClick={() =>
+                                                setAssetStatusFilter(status)
+                                            }
+                                            style={{
+                                                padding: "6px 12px",
+                                                borderRadius: "999px",
+                                                border: active
+                                                    ? `1px solid ${blackColor}`
+                                                    : "1px solid rgba(0,2,1,0.12)",
+                                                backgroundColor: active
+                                                    ? blackColor
+                                                    : "#FFFFFF",
+                                                color: active
+                                                    ? "#FFFFFF"
+                                                    : blackColor,
+                                                fontSize: "12px",
+                                                fontWeight: 700,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {status} ({count})
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {visibleAssets.length === 0 ? (
+                                <div
                                     style={{
-                                        padding: "9px 14px",
-                                        borderRadius: "8px",
-                                        border: "none",
-                                        backgroundColor:
-                                            copiedId === reviewingArticle.id
-                                                ? blueColor
-                                                : blackColor,
-                                        color: "#FFFFFF",
-                                        fontSize: "12px",
-                                        fontWeight: 700,
-                                        cursor: "pointer",
+                                        backgroundColor: "#FFFFFF",
+                                        border: "1px solid rgba(0, 2, 1, 0.08)",
+                                        borderRadius: "16px",
+                                        padding: "22px",
+                                        fontSize: "13px",
+                                        color: greyColor,
                                     }}
                                 >
-                                    {copiedId === reviewingArticle.id
-                                        ? "Copied!"
-                                        : "Copy for Squarespace"}
-                                </button>
-
-                                {reviewingArticle.photo_url && (
-                                    <a
-                                        href={reviewingArticle.photo_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                    No content creation assets in &ldquo;
+                                    {assetStatusFilter}&rdquo;.
+                                </div>
+                            ) : (
+                                visibleAssets.map((asset) => (
+                                    <div
+                                        key={asset.id}
                                         style={{
-                                            padding: "9px 14px",
-                                            borderRadius: "8px",
-                                            border:
-                                                "1px solid rgba(0, 2, 1, 0.16)",
                                             backgroundColor: "#FFFFFF",
-                                            color: blackColor,
-                                            fontSize: "12px",
-                                            fontWeight: 700,
-                                            textDecoration: "none",
+                                            border: "1px solid rgba(0, 2, 1, 0.09)",
+                                            borderRadius: "16px",
+                                            padding: "16px",
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: "8px",
                                         }}
                                     >
-                                        Open Photo
-                                    </a>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                alignItems: "flex-start",
+                                                gap: "10px",
+                                            }}
+                                        >
+                                            <div>
+                                                <div
+                                                    style={{
+                                                        fontSize: "11px",
+                                                        fontWeight: 800,
+                                                        color: blueColor,
+                                                        textTransform:
+                                                            "uppercase",
+                                                    }}
+                                                >
+                                                    {asset.source} • {asset.type}{" "}
+                                                    • {asset.aspectRatio}
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: "15px",
+                                                        fontWeight: 800,
+                                                        color: blackColor,
+                                                        marginTop: "2px",
+                                                    }}
+                                                >
+                                                    {asset.title}
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: "12px",
+                                                        color: greyColor,
+                                                    }}
+                                                >
+                                                    By {asset.creator} •{" "}
+                                                    {asset.dateAdded}
+                                                </div>
+                                            </div>
+
+                                            <span
+                                                style={{
+                                                    backgroundColor:
+                                                        getStatusBadgeColor(
+                                                            asset.status
+                                                        ),
+                                                    color: "#FFFFFF",
+                                                    fontSize: "11px",
+                                                    fontWeight: 800,
+                                                    padding: "4px 10px",
+                                                    borderRadius: "999px",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                {asset.status}
+                                            </span>
+                                        </div>
+
+                                        {asset.notes && (
+                                            <p
+                                                style={{
+                                                    margin: 0,
+                                                    fontSize: "13px",
+                                                    color: "#374151",
+                                                    lineHeight: 1.45,
+                                                }}
+                                            >
+                                                {asset.notes}
+                                            </p>
+                                        )}
+
+                                        {asset.reviewFeedback && (
+                                            <div
+                                                style={{
+                                                    backgroundColor: "#FEF2F2",
+                                                    borderLeft: `3px solid ${redColor}`,
+                                                    padding: "8px 11px",
+                                                    borderRadius: "6px",
+                                                    fontSize: "12px",
+                                                    color: "#991B1B",
+                                                }}
+                                            >
+                                                <strong>Tweaks note:</strong>{" "}
+                                                {asset.reviewFeedback}
+                                            </div>
+                                        )}
+
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                gap: "8px",
+                                                flexWrap: "wrap",
+                                                marginTop: "4px",
+                                            }}
+                                        >
+                                            <a
+                                                href={asset.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{
+                                                    padding: "7px 12px",
+                                                    borderRadius: "8px",
+                                                    border: `1px solid ${blueColor}`,
+                                                    color: blueColor,
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    textDecoration: "none",
+                                                }}
+                                            >
+                                                Open Link ↗
+                                            </a>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleAssetDecision(
+                                                        asset.id,
+                                                        "Approved"
+                                                    )
+                                                }
+                                                style={{
+                                                    padding: "7px 13px",
+                                                    borderRadius: "8px",
+                                                    border: "none",
+                                                    backgroundColor: blueColor,
+                                                    color: "#FFFFFF",
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Approve
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleAssetDecision(
+                                                        asset.id,
+                                                        "Needs Tweaks"
+                                                    )
+                                                }
+                                                style={{
+                                                    padding: "7px 13px",
+                                                    borderRadius: "8px",
+                                                    border: `1px solid ${redColor}`,
+                                                    backgroundColor: "#FFFFFF",
+                                                    color: redColor,
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Request Tweaks
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
