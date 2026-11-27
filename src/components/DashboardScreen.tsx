@@ -33,6 +33,7 @@ type ActionCategory =
 
 type PortalView =
     | "briefings"
+    | "memos"
     | "directory"
     | "queue"
     | "submit"
@@ -40,7 +41,6 @@ type PortalView =
     | "role-manager"
     | "outreach-tracker"
     | "outreach-templates"
-    | "outreach-handoffs"
     | "tech-systems"
     | "hr-legal"
     | "upload-assets"
@@ -92,15 +92,15 @@ const ALL_ACTIONS: ActionItem[] = [
             "Read leadership announcements, weekly campaign priorities, and internal operational updates.",
     },
     {
-        id: "dept-handoffs",
-        title: "Inter-Dept Handoffs",
+        id: "dept-memos-core",
+        title: "Dept Memos",
         subtitle: "Collab briefs & cross-team tasks",
         category: "core",
         accent: "blue",
         status: "Live",
-        targetView: "outreach-handoffs",
+        targetView: "memos",
         details:
-            "Pick up and complete cross-department requests from Outreach & Comms, Journalism, Creators, and Leadership.",
+            "Send and pick up cross-department memos across Journalism, Creators, Outreach & Comms, and Leadership.",
     },
     {
         id: "brand-kit",
@@ -168,6 +168,17 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Access verified driver profiles, standings, and official press reference notes.",
     },
+    {
+        id: "dept-memos-journalism",
+        title: "Dept Memos",
+        subtitle: "Collab briefs & cross-team tasks",
+        category: "journalist",
+        accent: "blue",
+        status: "Live",
+        targetView: "memos",
+        details:
+            "Send and pick up cross-department memos across Journalism, Creators, Outreach & Comms, and Leadership.",
+    },
 
     // Content Creation
     {
@@ -202,6 +213,17 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
     },
+    {
+        id: "dept-memos-creator",
+        title: "Dept Memos",
+        subtitle: "Collab briefs & cross-team tasks",
+        category: "creator",
+        accent: "blue",
+        status: "Live",
+        targetView: "memos",
+        details:
+            "Send and pick up cross-department memos across Journalism, Creators, Outreach & Comms, and Leadership.",
+    },
 
     // Outreach & Communications
     {
@@ -228,13 +250,13 @@ const ALL_ACTIONS: ActionItem[] = [
             "Copy ready-to-send podcast invites, team outreach messages, sponsorship pitches, and official RTA descriptions.",
     },
     {
-        id: "outreach-handoffs",
-        title: "Send Dept Handoff",
-        subtitle: "Brief Journalism, Creators & Admin",
+        id: "dept-memos-outreach",
+        title: "Dept Memos",
+        subtitle: "Collab briefs & cross-team tasks",
         category: "outreach",
         accent: "dark",
         status: "Comms Desk",
-        targetView: "outreach-handoffs",
+        targetView: "memos",
         details:
             "Send confirmed guest details, promo requests, and partnership announcements directly to other departments.",
     },
@@ -285,6 +307,17 @@ const ALL_ACTIONS: ActionItem[] = [
         details:
             "Oversee risingtalentacademy.co.uk infrastructure, shared social credentials, and Staff Portal configuration.",
     },
+    {
+        id: "dept-memos-leadership",
+        title: "Dept Memos",
+        subtitle: "Collab briefs & cross-team tasks",
+        category: "leadership",
+        accent: "dark",
+        status: "Live",
+        targetView: "memos",
+        details:
+            "Send and pick up cross-department memos across Journalism, Creators, Outreach & Comms, and Leadership.",
+    },
 ]
 
 const GROUP_LABELS: Record<PermissionGroup, string> = {
@@ -308,7 +341,7 @@ const DEPARTMENT_META: {
         category: "core",
         title: "General",
         subtitle: "Core Hub",
-        description: "Briefings, handoffs, brand kit, roster & profile",
+        description: "Briefings, memos, brand kit, roster & profile",
         scopeLabel: "All Staff",
     },
     {
@@ -316,7 +349,7 @@ const DEPARTMENT_META: {
         category: "journalist",
         title: "Journalism",
         subtitle: "Editorial Desk",
-        description: "Article queue, copy submission & press reference notes",
+        description: "Article queue, copy submission, notes & memos",
         scopeLabel: "Editorial",
     },
     {
@@ -324,7 +357,7 @@ const DEPARTMENT_META: {
         category: "creator",
         title: "Content Creation",
         subtitle: "Social & Video",
-        description: "Content schedule, asset dropzone & trending hooks",
+        description: "Content schedule, asset dropzone, hooks & memos",
         scopeLabel: "Creators",
     },
     {
@@ -332,7 +365,7 @@ const DEPARTMENT_META: {
         category: "outreach",
         title: "Outreach & Comms",
         subtitle: "Partnerships",
-        description: "Podcast & sponsor tracker, outreach scripts & handoffs",
+        description: "Podcast & sponsor tracker, outreach scripts & memos",
         scopeLabel: "Comms",
     },
     {
@@ -340,7 +373,7 @@ const DEPARTMENT_META: {
         category: "leadership",
         title: "Leadership & Admin",
         subtitle: "Restricted Control",
-        description: "Approvals, RTA IDs, HR & legal vault, and systems",
+        description: "Approvals, RTA IDs, HR & legal vault, systems & memos",
         scopeLabel: "Admin Only",
     },
 ]
@@ -445,6 +478,21 @@ export function DashboardScreen({
         return (
             <div style={canvasStyle}>
                 <TeamBriefingsView
+                    user={user}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
+    if (activeView === "memos") {
+        return (
+            <div style={canvasStyle}>
+                <DeptMemosView
                     user={user}
                     onBack={() => setActiveView(null)}
                     redColor={redColor}
@@ -565,15 +613,10 @@ export function DashboardScreen({
 
     if (
         activeView === "outreach-tracker" ||
-        activeView === "outreach-templates" ||
-        activeView === "outreach-handoffs"
+        activeView === "outreach-templates"
     ) {
         const pageMode: OutreachPageMode =
-            activeView === "outreach-templates"
-                ? "templates"
-                : activeView === "outreach-handoffs"
-                  ? "handoffs"
-                  : "tracker"
+            activeView === "outreach-templates" ? "templates" : "tracker"
 
         return (
             <div style={canvasStyle}>
