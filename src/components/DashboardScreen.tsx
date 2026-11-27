@@ -7,6 +7,7 @@ import { subscribeDeviceToPush } from "../lib/pushNotifications"
 import { TechSystemsView } from "./TechSystemsView"
 import { HrLegalVaultView } from "./HrLegalVaultView"
 import { UploadAssetsView } from "./UploadAssetsView"
+import { TeamBriefingsView } from "./TeamBriefingsView"
 
 export type PermissionGroup =
     | "journalist"
@@ -576,6 +577,21 @@ export function DashboardScreen({
             </div>
         )
     }
+
+    if (activeSubView === "briefings") {
+    return (
+        <div style={shellStyle}>
+            <TeamBriefingsView
+                user={user}
+                onBack={() => setActiveSubView(null)}
+                redColor={redColor}
+                blueColor={blueColor}
+                greyColor={greyColor}
+                blackColor={blackColor}
+            />
+        </div>
+    )
+}
 
     // Dedicated Department Page (when a department card is opened)
     if (currentDepartment) {
