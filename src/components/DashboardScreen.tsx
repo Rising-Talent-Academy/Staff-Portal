@@ -7,6 +7,7 @@ import { subscribeDeviceToPush } from "../lib/pushNotifications"
 import { TechSystemsView } from "./TechSystemsView"
 import { HrLegalVaultView } from "./HrLegalVaultView"
 import { UploadAssetsView } from "./UploadAssetsView"
+import { TeamBriefingsView } from "./TeamBriefingsView"
 
 export type PermissionGroup =
     | "journalist"
@@ -30,6 +31,7 @@ type ActionCategory =
     | "leadership"
 
 type PortalView =
+    | "briefings"
     | "directory"
     | "queue"
     | "submit"
@@ -47,10 +49,11 @@ interface ActionItem {
     title: string
     subtitle: string
     category: ActionCategory
-    accent: "red" | "blue" | "gradient"
+    accent: "red" | "blue" | "dark"
     status: string
     details: string
     targetView?: PortalView
+    featuredDark?: boolean
 }
 
 interface DepartmentPage {
@@ -59,6 +62,7 @@ interface DepartmentPage {
     title: string
     subtitle: string
     description: string
+    scopeLabel: string
     items: ActionItem[]
 }
 
@@ -79,8 +83,10 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Team Briefings",
         subtitle: "Notices & weekly priorities",
         category: "core",
-        accent: "gradient",
+        accent: "red",
         status: "Pinned",
+        targetView: "briefings",
+        featuredDark: true,
         details:
             "Read leadership announcements, weekly campaign priorities, and internal operational updates.",
     },
@@ -100,7 +106,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Brand & Media Kit",
         subtitle: "Logos, colours & style rules",
         category: "core",
-        accent: "red",
+        accent: "dark",
         status: "Current",
         details:
             "Official Rising Talent Academy brand palette (#fa3425, #000201, #034eaf, #696969), logo usage, and social styling rules.",
@@ -121,7 +127,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "My Profile & Docs",
         subtitle: "RTA ID, agreements & policies",
         category: "core",
-        accent: "gradient",
+        accent: "dark",
         status: "Verified",
         details:
             "Review your assigned RTA ID details, signed agreements, and core portal guidelines.",
@@ -133,9 +139,10 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Article Queue",
         subtitle: "Your articles & current status",
         category: "journalist",
-        accent: "gradient",
+        accent: "red",
         status: "Open",
         targetView: "queue",
+        featuredDark: true,
         details:
             "View your submitted articles and check their current editorial status.",
     },
@@ -144,7 +151,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Submit Article",
         subtitle: "Send in a new article",
         category: "journalist",
-        accent: "red",
+        accent: "blue",
         status: "Editorial",
         targetView: "submit",
         details:
@@ -155,7 +162,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Press & Fact-Check",
         subtitle: "Driver stats & series notes",
         category: "journalist",
-        accent: "blue",
+        accent: "dark",
         status: "Reference",
         details:
             "Access verified driver profiles, standings, and official press reference notes.",
@@ -167,8 +174,9 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Content Calendar",
         subtitle: "Reels, TikTok & Shorts slots",
         category: "creator",
-        accent: "gradient",
+        accent: "red",
         status: "Scheduled",
+        featuredDark: true,
         details:
             "Check upcoming posting dates, campaign deadlines, and assigned short-form video slots.",
     },
@@ -188,7 +196,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Social Trends & Hooks",
         subtitle: "Captions, audio & templates",
         category: "creator",
-        accent: "red",
+        accent: "dark",
         status: "Updated",
         details:
             "Browse approved audio trends, caption structures, and branded social overlay packs.",
@@ -200,9 +208,10 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Outreach & Podcast Tracker",
         subtitle: "Rising Talent Talkers & sponsors",
         category: "outreach",
-        accent: "gradient",
+        accent: "red",
         status: "Pipeline",
         targetView: "outreach-tracker",
+        featuredDark: true,
         details:
             "Track drivers, teams, and brand partnerships for Rising Talent Talkers and RTA collaborations without double-contacting leads.",
     },
@@ -222,7 +231,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Send Dept Handoff",
         subtitle: "Brief Journalism, Creators & Admin",
         category: "outreach",
-        accent: "red",
+        accent: "dark",
         status: "Comms Desk",
         targetView: "outreach-handoffs",
         details:
@@ -235,9 +244,10 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Editorial & Content Approvals",
         subtitle: "Review & sign off submissions",
         category: "leadership",
-        accent: "gradient",
+        accent: "red",
         status: "Admin",
         targetView: "approvals",
+        featuredDark: true,
         details:
             "Review pending articles and social media edits, leave editorial feedback, and approve items for release.",
     },
@@ -257,7 +267,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "HR & Legal Vault",
         subtitle: "Agreements, onboarding & logs",
         category: "leadership",
-        accent: "red",
+        accent: "dark",
         status: "Restricted",
         targetView: "hr-legal",
         details:
@@ -268,7 +278,7 @@ const ALL_ACTIONS: ActionItem[] = [
         title: "Tech & Systems Control",
         subtitle: "Website, domains & access",
         category: "leadership",
-        accent: "gradient",
+        accent: "blue",
         status: "Restricted",
         targetView: "tech-systems",
         details:
@@ -290,13 +300,15 @@ const DEPARTMENT_META: {
     title: string
     subtitle: string
     description: string
+    scopeLabel: string
 }[] = [
     {
         code: "01",
         category: "core",
         title: "General",
         subtitle: "Core Hub",
-        description: "Briefings, handoffs, brand kit, team roster & profile",
+        description: "Briefings, handoffs, brand kit, roster & profile",
+        scopeLabel: "All Staff",
     },
     {
         code: "02",
@@ -304,6 +316,7 @@ const DEPARTMENT_META: {
         title: "Journalism",
         subtitle: "Editorial Desk",
         description: "Article queue, copy submission & press reference notes",
+        scopeLabel: "Editorial",
     },
     {
         code: "03",
@@ -311,6 +324,7 @@ const DEPARTMENT_META: {
         title: "Content Creation",
         subtitle: "Social & Video",
         description: "Content schedule, asset dropzone & trending hooks",
+        scopeLabel: "Creators",
     },
     {
         code: "04",
@@ -318,6 +332,7 @@ const DEPARTMENT_META: {
         title: "Outreach & Comms",
         subtitle: "Partnerships",
         description: "Podcast & sponsor tracker, outreach scripts & handoffs",
+        scopeLabel: "Comms",
     },
     {
         code: "05",
@@ -325,6 +340,7 @@ const DEPARTMENT_META: {
         title: "Leadership & Admin",
         subtitle: "Restricted Control",
         description: "Approvals, RTA IDs, HR & legal vault, and systems",
+        scopeLabel: "Admin Only",
     },
 ]
 
@@ -409,19 +425,7 @@ export function DashboardScreen({
         setSelectedAction(action)
     }
 
-    const getAccentStyle = (
-        accent: ActionItem["accent"]
-    ): React.CSSProperties => {
-        if (accent === "gradient") {
-            return { background: horizontalGradient }
-        }
-        if (accent === "red") {
-            return { backgroundColor: redColor }
-        }
-        return { backgroundColor: blueColor }
-    }
-
-    const getAccentTextColor = (accent: ActionItem["accent"]): string => {
+    const getBarColor = (accent: ActionItem["accent"]): string => {
         if (accent === "red") return redColor
         if (accent === "blue") return blueColor
         return blackColor
@@ -429,13 +433,28 @@ export function DashboardScreen({
 
     const canvasStyle: React.CSSProperties = {
         minHeight: "100dvh",
-        backgroundColor: "#F6F7FA",
-        backgroundImage: `linear-gradient(180deg, rgba(250, 52, 37, 0.05) 0%, rgba(3, 78, 175, 0.04) 220px, rgba(246, 247, 250, 1) 420px)`,
+        backgroundColor: "#F4F6FA",
+        backgroundImage: `radial-gradient(circle at 18% 0%, rgba(250, 52, 37, 0.14) 0%, transparent 45%), radial-gradient(circle at 82% 0%, rgba(3, 78, 175, 0.14) 0%, transparent 48%), linear-gradient(180deg, #F7F8FC 0%, #F1F3F8 100%)`,
         color: blackColor,
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     }
 
     // Active sub-views
+    if (activeView === "briefings") {
+        return (
+            <div style={canvasStyle}>
+                <TeamBriefingsView
+                    user={user}
+                    onBack={() => setActiveView(null)}
+                    redColor={redColor}
+                    blueColor={blueColor}
+                    greyColor={greyColor}
+                    blackColor={blackColor}
+                />
+            </div>
+        )
+    }
+
     if (activeView === "directory") {
         return (
             <div style={canvasStyle}>
@@ -573,6 +592,7 @@ export function DashboardScreen({
 
     const renderActionSheet = () => {
         if (!selectedAction) return null
+        const accentColor = getBarColor(selectedAction.accent)
         return (
             <div
                 onClick={() => setSelectedAction(null)}
@@ -602,7 +622,7 @@ export function DashboardScreen({
                         style={{
                             height: "4px",
                             width: "100%",
-                            ...getAccentStyle(selectedAction.accent),
+                            background: horizontalGradient,
                         }}
                     />
 
@@ -621,9 +641,7 @@ export function DashboardScreen({
                                     fontWeight: 800,
                                     letterSpacing: "0.12em",
                                     textTransform: "uppercase",
-                                    color: getAccentTextColor(
-                                        selectedAction.accent
-                                    ),
+                                    color: accentColor,
                                 }}
                             >
                                 {selectedAction.status}
@@ -691,8 +709,27 @@ export function DashboardScreen({
         )
     }
 
-    // Dedicated Department Page
+    const portalFooter = (
+        <footer
+            style={{
+                maxWidth: "640px",
+                width: "100%",
+                margin: "32px auto 0",
+                paddingTop: "16px",
+                textAlign: "center",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: greyColor,
+            }}
+        >
+            risingtalentacademy.co.uk
+        </footer>
+    )
+
+    // Dedicated Department Page (2-column bento layout matching screenshot)
     if (currentDepartment) {
+        const hasOddItem = currentDepartment.items.length % 2 === 1
+
         return (
             <div
                 style={{
@@ -727,15 +764,16 @@ export function DashboardScreen({
                             style={{
                                 display: "inline-flex",
                                 alignItems: "center",
-                                gap: "8px",
-                                padding: "9px 14px",
-                                borderRadius: "12px",
-                                border: "1px solid rgba(0, 2, 1, 0.12)",
+                                gap: "6px",
+                                padding: "8px 14px",
+                                borderRadius: "10px",
+                                border: "1px solid rgba(0, 2, 1, 0.1)",
                                 backgroundColor: "#FFFFFF",
                                 color: blackColor,
                                 fontSize: "12.5px",
                                 fontWeight: 700,
                                 cursor: "pointer",
+                                boxShadow: "0 1px 2px rgba(0, 2, 1, 0.04)",
                             }}
                         >
                             <span>←</span>
@@ -751,97 +789,99 @@ export function DashboardScreen({
                                 color: greyColor,
                             }}
                         >
-                            DEPT {currentDepartment.code}
+                            {user.rtaId}
                         </span>
                     </div>
 
-                    {/* Department Page Header */}
+                    {/* Dark Department Hero Card */}
                     <section
                         style={{
+                            position: "relative",
                             borderRadius: "20px",
-                            backgroundColor: blackColor,
+                            backgroundColor: "#060B14",
+                            backgroundImage: `radial-gradient(circle at 22% 0%, rgba(250, 52, 37, 0.34) 0%, transparent 52%), radial-gradient(circle at 78% 0%, rgba(3, 78, 175, 0.36) 0%, transparent 55%)`,
                             color: "#FFFFFF",
                             overflow: "hidden",
-                            marginBottom: "16px",
-                            border: "1px solid rgba(0, 2, 1, 0.16)",
+                            marginBottom: "14px",
+                            padding: "18px 20px 20px",
+                            boxShadow: "0 10px 24px rgba(0, 2, 1, 0.12)",
                         }}
                     >
                         <div
                             style={{
-                                height: "4px",
-                                width: "100%",
-                                background: horizontalGradient,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "10px",
+                                marginBottom: "10px",
                             }}
-                        />
-
-                        <div style={{ padding: "18px 20px" }}>
-                            <div
+                        >
+                            <span
                                 style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    marginBottom: "6px",
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        fontSize: "10.5px",
-                                        fontWeight: 800,
-                                        letterSpacing: "0.16em",
-                                        textTransform: "uppercase",
-                                        background: horizontalGradient,
-                                        WebkitBackgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
-                                    }}
-                                >
-                                    {currentDepartment.subtitle}
-                                </span>
-                                <span
-                                    style={{
-                                        fontSize: "11px",
-                                        fontWeight: 700,
-                                        color: "rgba(255, 255, 255, 0.65)",
-                                    }}
-                                >
-                                    {currentDepartment.items.length} sections
-                                </span>
-                            </div>
-
-                            <h1
-                                style={{
-                                    margin: "0 0 5px",
-                                    fontSize: "22px",
+                                    fontSize: "10px",
                                     fontWeight: 800,
-                                    letterSpacing: "-0.02em",
-                                    color: "#FFFFFF",
-                                }}
-                            >
-                                {currentDepartment.title}
-                            </h1>
-
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: "13px",
-                                    lineHeight: 1.45,
+                                    letterSpacing: "0.18em",
+                                    textTransform: "uppercase",
                                     color: "rgba(255, 255, 255, 0.72)",
                                 }}
                             >
-                                {currentDepartment.description}
-                            </p>
+                                {currentDepartment.scopeLabel}
+                            </span>
+
+                            <span
+                                style={{
+                                    fontSize: "11.5px",
+                                    fontWeight: 700,
+                                    color: "rgba(255, 255, 255, 0.78)",
+                                }}
+                            >
+                                {currentDepartment.items.length} sections
+                            </span>
                         </div>
+
+                        <h1
+                            style={{
+                                margin: "0 0 6px",
+                                fontSize: "24px",
+                                fontWeight: 800,
+                                letterSpacing: "-0.025em",
+                                lineHeight: 1.15,
+                                color: "#FFFFFF",
+                            }}
+                        >
+                            {currentDepartment.title}
+                        </h1>
+
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: "13px",
+                                lineHeight: 1.4,
+                                color: "rgba(255, 255, 255, 0.72)",
+                            }}
+                        >
+                            {currentDepartment.description}
+                        </p>
                     </section>
 
-                    {/* Department Sections Stack */}
+                    {/* 2-Column Section Tiles */}
                     <div
                         style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "10px",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                            gap: "12px",
                         }}
                     >
                         {currentDepartment.items.map((action, idx) => {
                             const isPressed = pressedId === action.id
+                            const isDarkTile = Boolean(action.featuredDark)
+                            const isLastOdd =
+                                hasOddItem &&
+                                idx === currentDepartment.items.length - 1
+                            const barColor = getBarColor(action.accent)
+                            const actionLabel = action.targetView
+                                ? "OPEN →"
+                                : "VIEW →"
 
                             return (
                                 <button
@@ -852,121 +892,108 @@ export function DashboardScreen({
                                     onPointerLeave={() => setPressedId(null)}
                                     onClick={() => handleActionClick(action)}
                                     style={{
+                                        gridColumn: isLastOdd
+                                            ? "1 / -1"
+                                            : "auto",
                                         width: "100%",
                                         textAlign: "left",
-                                        padding: "15px 16px",
-                                        borderRadius: "16px",
-                                        border: "1px solid rgba(0, 2, 1, 0.1)",
-                                        backgroundColor: "#FFFFFF",
-                                        color: blackColor,
+                                        padding: "16px 17px 18px",
+                                        borderRadius: "18px",
+                                        border: isDarkTile
+                                            ? "1px solid rgba(255, 255, 255, 0.08)"
+                                            : "1px solid rgba(0, 2, 1, 0.07)",
+                                        backgroundColor: isDarkTile
+                                            ? "#0A0F1A"
+                                            : "#FFFFFF",
+                                        color: isDarkTile
+                                            ? "#FFFFFF"
+                                            : blackColor,
                                         cursor: "pointer",
                                         display: "flex",
-                                        alignItems: "center",
+                                        flexDirection: "column",
                                         justifyContent: "space-between",
-                                        gap: "14px",
+                                        minHeight: isLastOdd ? "104px" : "126px",
+                                        boxShadow: isDarkTile
+                                            ? "0 8px 20px rgba(0, 2, 1, 0.14)"
+                                            : "0 2px 8px rgba(0, 2, 1, 0.04)",
                                         transform: isPressed
-                                            ? "scale(0.988)"
+                                            ? "scale(0.985)"
                                             : "scale(1)",
                                         transition: "transform 110ms ease",
+                                        boxSizing: "border-box",
                                     }}
                                 >
                                     <div
                                         style={{
                                             display: "flex",
-                                            alignItems: "stretch",
-                                            gap: "13px",
-                                            minWidth: 0,
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: "8px",
+                                            marginBottom: "18px",
                                         }}
                                     >
                                         <span
                                             style={{
-                                                width: "4px",
+                                                width: "24px",
+                                                height: "4px",
                                                 borderRadius: "999px",
+                                                backgroundColor: barColor,
                                                 flexShrink: 0,
-                                                ...getAccentStyle(action.accent),
                                             }}
                                         />
 
-                                        <div style={{ minWidth: 0 }}>
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: "8px",
-                                                    marginBottom: "3px",
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: "10.5px",
-                                                        fontWeight: 800,
-                                                        color: greyColor,
-                                                    }}
-                                                >
-                                                    {String(idx + 1).padStart(
-                                                        2,
-                                                        "0"
-                                                    )}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        fontSize: "15px",
-                                                        fontWeight: 800,
-                                                        letterSpacing: "-0.015em",
-                                                        color: blackColor,
-                                                    }}
-                                                >
-                                                    {action.title}
-                                                </span>
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "12.5px",
-                                                    color: greyColor,
-                                                    lineHeight: 1.35,
-                                                }}
-                                            >
-                                                {action.subtitle}
-                                            </div>
-                                        </div>
+                                        <span
+                                            style={{
+                                                fontSize: "10px",
+                                                fontWeight: 800,
+                                                letterSpacing: "0.08em",
+                                                textTransform: "uppercase",
+                                                color: isDarkTile
+                                                    ? "rgba(255, 255, 255, 0.85)"
+                                                    : action.accent === "blue"
+                                                      ? blueColor
+                                                      : blackColor,
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            {actionLabel}
+                                        </span>
                                     </div>
 
-                                    <span
-                                        style={{
-                                            fontSize: "11px",
-                                            fontWeight: 800,
-                                            letterSpacing: "0.08em",
-                                            textTransform: "uppercase",
-                                            color: getAccentTextColor(
-                                                action.accent
-                                            ),
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        {action.targetView ? "Open →" : "Info →"}
-                                    </span>
+                                    <div>
+                                        <div
+                                            style={{
+                                                fontSize: "15.5px",
+                                                fontWeight: 800,
+                                                letterSpacing: "-0.015em",
+                                                lineHeight: 1.25,
+                                                color: isDarkTile
+                                                    ? "#FFFFFF"
+                                                    : blackColor,
+                                                marginBottom: "4px",
+                                            }}
+                                        >
+                                            {action.title}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: "12px",
+                                                lineHeight: 1.35,
+                                                color: isDarkTile
+                                                    ? "rgba(255, 255, 255, 0.65)"
+                                                    : greyColor,
+                                            }}
+                                        >
+                                            {action.subtitle}
+                                        </div>
+                                    </div>
                                 </button>
                             )
                         })}
                     </div>
                 </div>
 
-                <footer
-                    style={{
-                        maxWidth: "640px",
-                        width: "100%",
-                        margin: "32px auto 0",
-                        paddingTop: "16px",
-                        borderTop: "1px solid rgba(0, 2, 1, 0.08)",
-                        textAlign: "center",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: greyColor,
-                    }}
-                >
-                    risingtalentacademy.co.uk
-                </footer>
-
+                {portalFooter}
                 {selectedAction && renderActionSheet()}
             </div>
         )
@@ -1110,7 +1137,7 @@ export function DashboardScreen({
                     </div>
                 </header>
 
-                {/* Redesigned Paddock Pass */}
+                {/* Paddock Pass */}
                 <section
                     style={{
                         position: "relative",
@@ -1122,7 +1149,6 @@ export function DashboardScreen({
                         border: "1px solid rgba(255, 255, 255, 0.08)",
                     }}
                 >
-                    {/* Left Vertical Racing Gradient Strip */}
                     <div
                         style={{
                             position: "absolute",
@@ -1134,7 +1160,6 @@ export function DashboardScreen({
                         }}
                     />
 
-                    {/* Top Gradient Accent Bar */}
                     <div
                         style={{
                             height: "3px",
@@ -1479,22 +1504,7 @@ export function DashboardScreen({
                 </div>
             </div>
 
-            {/* Footer */}
-            <footer
-                style={{
-                    maxWidth: "640px",
-                    width: "100%",
-                    margin: "32px auto 0",
-                    paddingTop: "16px",
-                    borderTop: "1px solid rgba(0, 2, 1, 0.08)",
-                    textAlign: "center",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: greyColor,
-                }}
-            >
-                risingtalentacademy.co.uk
-            </footer>
+            {portalFooter}
 
             {/* Install Sheet */}
             {installSheetOpen && (
