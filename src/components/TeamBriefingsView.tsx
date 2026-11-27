@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
-import type { PermissionGroup, StaffProfile } from "./DashboardScreen"
 
 export type BriefingPriority = "priority" | "update" | "reminder"
+
+export interface BriefingStaffUser {
+    rtaId: string
+    name: string
+    role: string
+    permissionGroup: string
+}
 
 export interface TeamBriefing {
     id: string
@@ -17,7 +23,7 @@ export interface TeamBriefing {
 }
 
 interface TeamBriefingsViewProps {
-    user: StaffProfile
+    user: BriefingStaffUser
     onBack: () => void
     redColor?: string
     blueColor?: string
@@ -31,33 +37,10 @@ const PRIORITY_LABELS: Record<BriefingPriority, string> = {
     reminder: "Reminder",
 }
 
-const DEFAULT_BRIEFINGS: TeamBriefing[] = [
-    {
-        id: "seed-1",
-        title: "Weekly Priorities & Content Alignment",
-        body: "Check your department page for active deliverables, handoffs, and approval queues. Keep titles clear and tag any cross-team needs early so nothing stalls.",
-        priority: "priority",
-        pinned: true,
-        authorName: "Antony Dyson",
-        authorRole: "Founder & Leadership",
-        authorRtaId: "RTA-001",
-        createdAt: "Pinned",
-    },
-    {
-        id: "seed-2",
-        title: "Brand Palette & Gradient Standard",
-        body: "Stick to Rising Talent Academy's core palette (#fa3425, #000201, #034eaf, #696969) and the red-to-blue gradient accents across portal and social assets.",
-        priority: "update",
-        pinned: false,
-        authorName: "Leadership Desk",
-        authorRole: "Admin",
-        authorRtaId: "RTA-ADMIN",
-        createdAt: "Recent",
-    },
-]
+const DEFAULT_BRIEFINGS: TeamBriefing[] = []
 
-function isAdminGroup(group: PermissionGroup): boolean {
-    return group === "leadership"
+function isAdminUser(group?: string): boolean {
+    return group === "leadership" || group === "admin"
 }
 
 export function TeamBriefingsView({
@@ -68,7 +51,7 @@ export function TeamBriefingsView({
     greyColor = "#696969",
     blackColor = "#000201",
 }: TeamBriefingsViewProps) {
-    const canPost = isAdminGroup(user.permissionGroup)
+    const canPost = isAdminUser(user?.permissionGroup)
 
     const [briefings, setBriefings] = useState<TeamBriefing[]>(DEFAULT_BRIEFINGS)
     const [loading, setLoading] = useState(true)
@@ -97,7 +80,7 @@ export function TeamBriefingsView({
 
                 if (!active) return
 
-                if (!error && Array.isArray(data) && data.length > 0) {
+                if (!error && Array.isArray(data)) {
                     const mapped: TeamBriefing[] = data.map((row: any) => ({
                         id: String(row.id),
                         title: String(row.title ?? ""),
@@ -123,7 +106,7 @@ export function TeamBriefingsView({
                     setBriefings(mapped)
                 }
             } catch {
-                // Keep default briefings if table isn't reachable yet
+                // Keep empty list if Supabase table isn't reached
             } finally {
                 if (active) setLoading(false)
             }
@@ -163,9 +146,9 @@ export function TeamBriefingsView({
             body: cleanBody,
             priority,
             pinned,
-            authorName: user.name,
-            authorRole: user.role,
-            authorRtaId: user.rtaId,
+            authorName: user?.name || "Leadership",
+            authorRole: user?.role || "Admin",
+            authorRtaId: user?.rtaId || "RTA-ADMIN",
             createdAt: "Just now",
         }
 
@@ -177,9 +160,9 @@ export function TeamBriefingsView({
                     body: cleanBody,
                     priority,
                     pinned,
-                    author_name: user.name,
-                    author_role: user.role,
-                    author_rta_id: user.rtaId,
+                    author_name: optimisticItem.authorName,
+                    author_role: optimisticItem.authorRole,
+                    author_rta_id: optimisticItem.authorRtaId,
                 })
                 .select()
                 .single()
@@ -198,16 +181,18 @@ export function TeamBriefingsView({
         setPinned(false)
         setComposerOpen(false)
         setSubmitting(false)
-        setStatusNote("Briefing posted to the team.")
+        setStatusNote("Briefing posted.")
     }
 
     const handleDelete = async (id: string) => {
         if (!canPost) return
         setBriefings((prev) => prev.filter((item) => item.id !== id))
-        try {
-            await supabase.from("team_briefings").delete().eq("id", id)
-        } catch {
-            // Ignore network error after local removal
+        if (!id.startsWith("local-")) {
+            try {
+                await supabase.from("team_briefings").delete().eq("id", id)
+            } catch {
+                // Ignore network error after local removal
+            }
         }
     }
 
@@ -561,6 +546,19 @@ export function TeamBriefingsView({
                         }}
                     >
                         Loading briefings...
+                    </div>
+                ) : sortedBriefings.length === 0 ? (
+                    <div
+                        style={{
+                            padding: "18px",
+                            borderRadius: "16px",
+                            backgroundColor: "#FFFFFF",
+                            border: "1px solid rgba(0, 2, 1, 0.08)",
+                            fontSize: "13px",
+                            color: greyColor,
+                        }}
+                    >
+                        No team briefings posted yet.
                     </div>
                 ) : (
                     sortedBriefings.map((item) => (
