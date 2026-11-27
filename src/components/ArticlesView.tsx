@@ -36,30 +36,7 @@ interface ArticlesViewProps {
 
 const ARTICLES_STORAGE_KEY = "rta_staff_portal_articles_v1"
 
-const INITIAL_ARTICLES: ArticleSubmission[] = [
-    {
-        id: "art-1",
-        title: "Silverstone Qualifying Recap: Rising Talent Contenders Shine",
-        summary: "Lap-by-lap breakdown of qualifying pace, tyre strategy, and key paddock takeaways.",
-        body: "Qualifying under overcast skies at Silverstone delivered tight margins across the top ten...",
-        credits: "Words & Paddock Notes by Editorial Desk",
-        author: "Alex Mercer",
-        authorRtaId: "RTA-104",
-        submittedDate: "26/11/2026",
-        status: "In Review",
-    },
-    {
-        id: "art-2",
-        title: "Inside the Sim Prep Behind Academy Race Weekends",
-        summary: "How academy drivers prepare racecraft and consistency ahead of lights out.",
-        body: "Before a single wheel turns at the circuit, drivers log hours refining braking markers...",
-        credits: "Feature by Editorial Desk",
-        author: "Jordan Taylor",
-        authorRtaId: "RTA-112",
-        submittedDate: "24/11/2026",
-        status: "Approved",
-    },
-]
+const INITIAL_ARTICLES: ArticleSubmission[] = []
 
 function formatDateUK(date = new Date()): string {
     const dd = String(date.getDate()).padStart(2, "0")
@@ -73,9 +50,11 @@ function loadArticles(): ArticleSubmission[] {
         const raw = localStorage.getItem(ARTICLES_STORAGE_KEY)
         if (!raw) return INITIAL_ARTICLES
         const parsed = JSON.parse(raw)
-        return Array.isArray(parsed) && parsed.length > 0
-            ? parsed
-            : INITIAL_ARTICLES
+        if (!Array.isArray(parsed)) return INITIAL_ARTICLES
+        // Filter out the old hardcoded sample IDs if still cached in localStorage
+        return parsed.filter(
+            (item: ArticleSubmission) => item.id !== "art-1" && item.id !== "art-2"
+        )
     } catch {
         return INITIAL_ARTICLES
     }
@@ -399,96 +378,112 @@ export const ArticlesView: React.FC<ArticlesViewProps> = ({
             {/* MODE 1: ARTICLE QUEUE */}
             {mode === "queue" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "11px" }}>
-                    {articles.map((article) => (
+                    {articles.length === 0 ? (
                         <div
-                            key={article.id}
                             style={{
                                 backgroundColor: "#FFFFFF",
                                 border: "1px solid rgba(0, 2, 1, 0.08)",
                                 borderRadius: "16px",
-                                padding: "16px",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "8px",
-                                boxShadow: "0 6px 18px rgba(0, 2, 1, 0.04)",
+                                padding: "24px",
+                                textAlign: "center",
+                                fontSize: "13px",
+                                color: greyColor,
                             }}
                         >
+                            No articles in the queue yet.
+                        </div>
+                    ) : (
+                        articles.map((article) => (
                             <div
+                                key={article.id}
                                 style={{
+                                    backgroundColor: "#FFFFFF",
+                                    border: "1px solid rgba(0, 2, 1, 0.08)",
+                                    borderRadius: "16px",
+                                    padding: "16px",
                                     display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "flex-start",
-                                    gap: "10px",
+                                    flexDirection: "column",
+                                    gap: "8px",
+                                    boxShadow: "0 6px 18px rgba(0, 2, 1, 0.04)",
                                 }}
                             >
-                                <div>
-                                    <div
-                                        style={{
-                                            fontSize: "15px",
-                                            fontWeight: 800,
-                                            color: blackColor,
-                                        }}
-                                    >
-                                        {article.title}
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: "12px",
-                                            color: greyColor,
-                                            marginTop: "2px",
-                                        }}
-                                    >
-                                        {article.author} ({article.authorRtaId}) •{" "}
-                                        {article.submittedDate}
-                                    </div>
-                                </div>
-
-                                <span
+                                <div
                                     style={{
-                                        backgroundColor: getStatusBadgeColor(
-                                            article.status
-                                        ),
-                                        color: "#FFFFFF",
-                                        fontSize: "11px",
-                                        fontWeight: 800,
-                                        padding: "4px 10px",
-                                        borderRadius: "999px",
-                                        whiteSpace: "nowrap",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "flex-start",
+                                        gap: "10px",
                                     }}
                                 >
-                                    {article.status}
-                                </span>
-                            </div>
+                                    <div>
+                                        <div
+                                            style={{
+                                                fontSize: "15px",
+                                                fontWeight: 800,
+                                                color: blackColor,
+                                            }}
+                                        >
+                                            {article.title}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: "12px",
+                                                color: greyColor,
+                                                marginTop: "2px",
+                                            }}
+                                        >
+                                            {article.author} ({article.authorRtaId}) •{" "}
+                                            {article.submittedDate}
+                                        </div>
+                                    </div>
 
-                            <p
-                                style={{
-                                    margin: 0,
-                                    fontSize: "13px",
-                                    color: "#374151",
-                                    lineHeight: 1.45,
-                                }}
-                            >
-                                {article.summary}
-                            </p>
-
-                            {article.status === "Needs Tweaks" &&
-                                article.reviewFeedback && (
-                                    <div
+                                    <span
                                         style={{
-                                            backgroundColor: "#FEF2F2",
-                                            borderLeft: `3px solid ${redColor}`,
-                                            padding: "9px 12px",
-                                            borderRadius: "8px",
-                                            fontSize: "12px",
-                                            color: "#991B1B",
+                                            backgroundColor: getStatusBadgeColor(
+                                                article.status
+                                            ),
+                                            color: "#FFFFFF",
+                                            fontSize: "11px",
+                                            fontWeight: 800,
+                                            padding: "4px 10px",
+                                            borderRadius: "999px",
+                                            whiteSpace: "nowrap",
                                         }}
                                     >
-                                        <strong>Tweaks requested:</strong>{" "}
-                                        {article.reviewFeedback}
-                                    </div>
-                                )}
-                        </div>
-                    ))}
+                                        {article.status}
+                                    </span>
+                                </div>
+
+                                <p
+                                    style={{
+                                        margin: 0,
+                                        fontSize: "13px",
+                                        color: "#374151",
+                                        lineHeight: 1.45,
+                                    }}
+                                >
+                                    {article.summary}
+                                </p>
+
+                                {article.status === "Needs Tweaks" &&
+                                    article.reviewFeedback && (
+                                        <div
+                                            style={{
+                                                backgroundColor: "#FEF2F2",
+                                                borderLeft: `3px solid ${redColor}`,
+                                                padding: "9px 12px",
+                                                borderRadius: "8px",
+                                                fontSize: "12px",
+                                                color: "#991B1B",
+                                            }}
+                                        >
+                                            <strong>Tweaks requested:</strong>{" "}
+                                            {article.reviewFeedback}
+                                        </div>
+                                    )}
+                            </div>
+                        ))
+                    )}
                 </div>
             )}
 
@@ -676,143 +671,159 @@ export const ArticlesView: React.FC<ArticlesViewProps> = ({
                                 gap: "11px",
                             }}
                         >
-                            {articles.map((article) => (
+                            {articles.length === 0 ? (
                                 <div
-                                    key={article.id}
                                     style={{
                                         backgroundColor: "#FFFFFF",
-                                        border: "1px solid rgba(0, 2, 1, 0.09)",
+                                        border: "1px solid rgba(0, 2, 1, 0.08)",
                                         borderRadius: "16px",
-                                        padding: "16px",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: "8px",
+                                        padding: "22px",
+                                        fontSize: "13px",
+                                        color: greyColor,
                                     }}
                                 >
+                                    No journalism submissions awaiting review.
+                                </div>
+                            ) : (
+                                articles.map((article) => (
                                     <div
+                                        key={article.id}
                                         style={{
+                                            backgroundColor: "#FFFFFF",
+                                            border: "1px solid rgba(0, 2, 1, 0.09)",
+                                            borderRadius: "16px",
+                                            padding: "16px",
                                             display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "flex-start",
-                                            gap: "10px",
+                                            flexDirection: "column",
+                                            gap: "8px",
                                         }}
                                     >
-                                        <div>
-                                            <div
-                                                style={{
-                                                    fontSize: "15px",
-                                                    fontWeight: 800,
-                                                    color: blackColor,
-                                                }}
-                                            >
-                                                {article.title}
-                                            </div>
-                                            <div
-                                                style={{
-                                                    fontSize: "12px",
-                                                    color: greyColor,
-                                                }}
-                                            >
-                                                By {article.author} •{" "}
-                                                {article.submittedDate}
-                                            </div>
-                                        </div>
-                                        <span
-                                            style={{
-                                                backgroundColor:
-                                                    getStatusBadgeColor(
-                                                        article.status
-                                                    ),
-                                                color: "#FFFFFF",
-                                                fontSize: "11px",
-                                                fontWeight: 800,
-                                                padding: "4px 10px",
-                                                borderRadius: "999px",
-                                            }}
-                                        >
-                                            {article.status}
-                                        </span>
-                                    </div>
-
-                                    <p
-                                        style={{
-                                            margin: 0,
-                                            fontSize: "13px",
-                                            color: "#374151",
-                                            lineHeight: 1.45,
-                                        }}
-                                    >
-                                        {article.body}
-                                    </p>
-
-                                    {article.reviewFeedback && (
                                         <div
                                             style={{
-                                                backgroundColor: "#FEF2F2",
-                                                borderLeft: `3px solid ${redColor}`,
-                                                padding: "8px 11px",
-                                                borderRadius: "6px",
-                                                fontSize: "12px",
-                                                color: "#991B1B",
+                                                display: "flex",
+                                                justifyContent:
+                                                    "space-between",
+                                                alignItems: "flex-start",
+                                                gap: "10px",
                                             }}
                                         >
-                                            <strong>Tweaks note:</strong>{" "}
-                                            {article.reviewFeedback}
+                                            <div>
+                                                <div
+                                                    style={{
+                                                        fontSize: "15px",
+                                                        fontWeight: 800,
+                                                        color: blackColor,
+                                                    }}
+                                                >
+                                                    {article.title}
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        fontSize: "12px",
+                                                        color: greyColor,
+                                                    }}
+                                                >
+                                                    By {article.author} •{" "}
+                                                    {article.submittedDate}
+                                                </div>
+                                            </div>
+                                            <span
+                                                style={{
+                                                    backgroundColor:
+                                                        getStatusBadgeColor(
+                                                            article.status
+                                                        ),
+                                                    color: "#FFFFFF",
+                                                    fontSize: "11px",
+                                                    fontWeight: 800,
+                                                    padding: "4px 10px",
+                                                    borderRadius: "999px",
+                                                }}
+                                            >
+                                                {article.status}
+                                            </span>
                                         </div>
-                                    )}
 
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            gap: "8px",
-                                            marginTop: "4px",
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleArticleDecision(
-                                                    article.id,
-                                                    "Approved"
-                                                )
-                                            }
+                                        <p
                                             style={{
-                                                padding: "7px 13px",
-                                                borderRadius: "8px",
-                                                border: "none",
-                                                backgroundColor: blueColor,
-                                                color: "#FFFFFF",
-                                                fontSize: "12px",
-                                                fontWeight: 700,
-                                                cursor: "pointer",
+                                                margin: 0,
+                                                fontSize: "13px",
+                                                color: "#374151",
+                                                lineHeight: 1.45,
                                             }}
                                         >
-                                            Approve
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleArticleDecision(
-                                                    article.id,
-                                                    "Needs Tweaks"
-                                                )
-                                            }
+                                            {article.body}
+                                        </p>
+
+                                        {article.reviewFeedback && (
+                                            <div
+                                                style={{
+                                                    backgroundColor: "#FEF2F2",
+                                                    borderLeft: `3px solid ${redColor}`,
+                                                    padding: "8px 11px",
+                                                    borderRadius: "6px",
+                                                    fontSize: "12px",
+                                                    color: "#991B1B",
+                                                }}
+                                            >
+                                                <strong>Tweaks note:</strong>{" "}
+                                                {article.reviewFeedback}
+                                            </div>
+                                        )}
+
+                                        <div
                                             style={{
-                                                padding: "7px 13px",
-                                                borderRadius: "8px",
-                                                border: `1px solid ${redColor}`,
-                                                backgroundColor: "#FFFFFF",
-                                                color: redColor,
-                                                fontSize: "12px",
-                                                fontWeight: 700,
-                                                cursor: "pointer",
+                                                display: "flex",
+                                                gap: "8px",
+                                                marginTop: "4px",
                                             }}
                                         >
-                                            Request Tweaks
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleArticleDecision(
+                                                        article.id,
+                                                        "Approved"
+                                                    )
+                                                }
+                                                style={{
+                                                    padding: "7px 13px",
+                                                    borderRadius: "8px",
+                                                    border: "none",
+                                                    backgroundColor: blueColor,
+                                                    color: "#FFFFFF",
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleArticleDecision(
+                                                        article.id,
+                                                        "Needs Tweaks"
+                                                    )
+                                                }
+                                                style={{
+                                                    padding: "7px 13px",
+                                                    borderRadius: "8px",
+                                                    border: `1px solid ${redColor}`,
+                                                    backgroundColor: "#FFFFFF",
+                                                    color: redColor,
+                                                    fontSize: "12px",
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Request Tweaks
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     )}
 
