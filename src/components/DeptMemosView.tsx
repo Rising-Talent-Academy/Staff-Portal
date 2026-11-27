@@ -62,6 +62,32 @@ function statusBadgeLabel(status: string): string {
     return "Open"
 }
 
+function isMemoSentToDepartment(
+    targetDepartment: string,
+    permissionGroup: string
+): boolean {
+    if (targetDepartment === "all") return true
+
+    switch (permissionGroup) {
+        case "journalist":
+            return targetDepartment === "journalist" || targetDepartment === "both"
+        case "creator":
+            return targetDepartment === "creator" || targetDepartment === "both"
+        case "both":
+            return (
+                targetDepartment === "both" ||
+                targetDepartment === "journalist" ||
+                targetDepartment === "creator"
+            )
+        case "outreach":
+            return targetDepartment === "outreach"
+        case "leadership":
+            return targetDepartment === "leadership"
+        default:
+            return targetDepartment === permissionGroup
+    }
+}
+
 export function DeptMemosView({
     user,
     onBack,
@@ -73,7 +99,6 @@ export function DeptMemosView({
     const [memos, setMemos] = useState<DeptMemo[]>([])
     const [loading, setLoading] = useState(true)
     const [composerOpen, setComposerOpen] = useState(false)
-    const [deptFilter, setDeptFilter] = useState<string>("all")
 
     const [title, setTitle] = useState("")
     const [targetDept, setTargetDept] = useState<MemoTargetDept>("all")
@@ -225,18 +250,16 @@ export function DeptMemosView({
         }
     }
 
-    const visibleMemos =
-        deptFilter === "all"
-            ? memos
-            : memos.filter(
-                  (m) =>
-                      m.targetDepartment === deptFilter ||
-                      m.targetDepartment === "all" ||
-                      (deptFilter === "journalist" &&
-                          m.targetDepartment === "both") ||
-                      (deptFilter === "creator" &&
-                          m.targetDepartment === "both")
-              )
+    const memosSentToDept = memos.filter((m) =>
+        isMemoSentToDepartment(m.targetDepartment, user.permissionGroup)
+    )
+
+    const memosSentByDept = memos.filter(
+        (m) =>
+            m.createdByRtaId.toLowerCase() === user.rtaId.toLowerCase() ||
+            (user.name &&
+                m.createdByName.toLowerCase() === user.name.toLowerCase())
+    )
 
     const getBadgeStyle = (status: string): React.CSSProperties => {
         if (status === "completed") {
@@ -256,6 +279,185 @@ export function DeptMemosView({
             color: "#FFFFFF",
         }
     }
+
+    const renderMemoCard = (memo: DeptMemo) => (
+        <article
+            key={memo.id}
+            style={{
+                borderRadius: "18px",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid rgba(0, 2, 1, 0.1)",
+                overflow: "hidden",
+                opacity: memo.status === "completed" ? 0.72 : 1,
+            }}
+        >
+            {memo.status === "open" && (
+                <div
+                    style={{
+                        height: "3px",
+                        width: "100%",
+                        background: gradientBar,
+                    }}
+                />
+            )}
+
+            <div style={{ padding: "16px 18px" }}>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        marginBottom: "8px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <span
+                            style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "10px",
+                                fontWeight: 800,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                ...getBadgeStyle(memo.status),
+                            }}
+                        >
+                            {statusBadgeLabel(memo.status)}
+                        </span>
+                        <span
+                            style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                backgroundColor: "rgba(0, 2, 1, 0.06)",
+                                color: blackColor,
+                                fontSize: "10px",
+                                fontWeight: 800,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            To: {targetDeptLabel(memo.targetDepartment)}
+                        </span>
+                    </div>
+
+                    <span
+                        style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: greyColor,
+                        }}
+                    >
+                        {memo.createdAt}
+                    </span>
+                </div>
+
+                <h3
+                    style={{
+                        margin: "0 0 6px",
+                        fontSize: "16.5px",
+                        fontWeight: 800,
+                        letterSpacing: "-0.015em",
+                        color: blackColor,
+                    }}
+                >
+                    {memo.title}
+                </h3>
+
+                <p
+                    style={{
+                        margin: "0 0 12px",
+                        fontSize: "13.5px",
+                        lineHeight: 1.5,
+                        color: greyColor,
+                        whiteSpace: "pre-line",
+                    }}
+                >
+                    {memo.brief}
+                </p>
+
+                <div
+                    style={{
+                        paddingTop: "10px",
+                        borderTop: "1px solid rgba(0, 2, 1, 0.06)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        color: blackColor,
+                    }}
+                >
+                    <span>
+                        From {memo.createdByRtaId}
+                        {memo.claimedByRtaId ? (
+                            <span style={{ color: greyColor }}>
+                                {" "}
+                                · Picked up by {memo.claimedByRtaId}
+                            </span>
+                        ) : null}
+                    </span>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                        }}
+                    >
+                        {memo.status === "open" && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleUpdateStatus(memo, "in_progress")
+                                }
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    padding: 0,
+                                    fontSize: "11px",
+                                    fontWeight: 800,
+                                    color: blueColor,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Pick Up
+                            </button>
+                        )}
+
+                        {memo.status !== "completed" && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleUpdateStatus(memo, "completed")
+                                }
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    padding: 0,
+                                    fontSize: "11px",
+                                    fontWeight: 800,
+                                    color: redColor,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Mark Done
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </article>
+    )
 
     return (
         <div
@@ -383,49 +585,10 @@ export function DeptMemosView({
                             color: "rgba(255, 255, 255, 0.72)",
                         }}
                     >
-                        Send collab briefs, handoffs, and cross-department updates
-                        across every team.
+                        Memos sent to your department and memos sent out by you.
                     </p>
                 </div>
             </section>
-
-            {/* Department Filter Pills */}
-            <div
-                style={{
-                    display: "flex",
-                    gap: "6px",
-                    overflowX: "auto",
-                    paddingBottom: "4px",
-                    marginBottom: "12px",
-                }}
-            >
-                {TARGET_DEPT_OPTIONS.map((opt) => {
-                    const active = deptFilter === opt.value
-                    return (
-                        <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => setDeptFilter(opt.value)}
-                            style={{
-                                padding: "6px 11px",
-                                borderRadius: "999px",
-                                border: active
-                                    ? "none"
-                                    : "1px solid rgba(0, 2, 1, 0.12)",
-                                background: active ? gradientBar : "#FFFFFF",
-                                color: active ? "#FFFFFF" : blackColor,
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                whiteSpace: "nowrap",
-                                cursor: "pointer",
-                                flexShrink: 0,
-                            }}
-                        >
-                            {opt.label}
-                        </button>
-                    )
-                })}
-            </div>
 
             {statusNote && (
                 <div
@@ -567,230 +730,140 @@ export function DeptMemosView({
                 </form>
             )}
 
-            {/* Memo Feed (Matching Team Briefings Cards) */}
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "11px",
-                }}
-            >
-                {loading ? (
-                    <div
-                        style={{
-                            padding: "18px",
-                            borderRadius: "16px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.08)",
-                            fontSize: "13px",
-                            color: greyColor,
-                        }}
-                    >
-                        Loading department memos...
-                    </div>
-                ) : visibleMemos.length === 0 ? (
-                    <div
-                        style={{
-                            padding: "18px",
-                            borderRadius: "16px",
-                            backgroundColor: "#FFFFFF",
-                            border: "1px solid rgba(0, 2, 1, 0.08)",
-                            fontSize: "13px",
-                            color: greyColor,
-                        }}
-                    >
-                        No department memos in this view yet.
-                    </div>
-                ) : (
-                    visibleMemos.map((memo) => (
-                        <article
-                            key={memo.id}
+            {loading ? (
+                <div
+                    style={{
+                        padding: "18px",
+                        borderRadius: "16px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid rgba(0, 2, 1, 0.08)",
+                        fontSize: "13px",
+                        color: greyColor,
+                    }}
+                >
+                    Loading department memos...
+                </div>
+            ) : (
+                <>
+                    {/* Section 1: Memos Sent to Your Department */}
+                    <section style={{ marginBottom: "20px" }}>
+                        <div
                             style={{
-                                borderRadius: "18px",
-                                backgroundColor: "#FFFFFF",
-                                border: "1px solid rgba(0, 2, 1, 0.1)",
-                                overflow: "hidden",
-                                opacity: memo.status === "completed" ? 0.72 : 1,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "0 4px 10px",
                             }}
                         >
-                            {memo.status === "open" && (
-                                <div
-                                    style={{
-                                        height: "3px",
-                                        width: "100%",
-                                        background: gradientBar,
-                                    }}
-                                />
-                            )}
+                            <h2
+                                style={{
+                                    margin: 0,
+                                    fontSize: "11.5px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.14em",
+                                    textTransform: "uppercase",
+                                    color: blackColor,
+                                }}
+                            >
+                                Memos Sent to Your Dept
+                            </h2>
+                            <span
+                                style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    color: greyColor,
+                                }}
+                            >
+                                {memosSentToDept.length}
+                            </span>
+                        </div>
 
-                            <div style={{ padding: "16px 18px" }}>
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        gap: "8px",
-                                        marginBottom: "8px",
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "6px",
-                                            flexWrap: "wrap",
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                padding: "3px 8px",
-                                                borderRadius: "6px",
-                                                fontSize: "10px",
-                                                fontWeight: 800,
-                                                letterSpacing: "0.08em",
-                                                textTransform: "uppercase",
-                                                ...getBadgeStyle(memo.status),
-                                            }}
-                                        >
-                                            {statusBadgeLabel(memo.status)}
-                                        </span>
-                                        <span
-                                            style={{
-                                                padding: "3px 8px",
-                                                borderRadius: "6px",
-                                                backgroundColor:
-                                                    "rgba(0, 2, 1, 0.06)",
-                                                color: blackColor,
-                                                fontSize: "10px",
-                                                fontWeight: 800,
-                                                letterSpacing: "0.06em",
-                                                textTransform: "uppercase",
-                                            }}
-                                        >
-                                            To: {targetDeptLabel(memo.targetDepartment)}
-                                        </span>
-                                    </div>
-
-                                    <span
-                                        style={{
-                                            fontSize: "11px",
-                                            fontWeight: 700,
-                                            color: greyColor,
-                                        }}
-                                    >
-                                        {memo.createdAt}
-                                    </span>
-                                </div>
-
-                                <h2
-                                    style={{
-                                        margin: "0 0 6px",
-                                        fontSize: "16.5px",
-                                        fontWeight: 800,
-                                        letterSpacing: "-0.015em",
-                                        color: blackColor,
-                                    }}
-                                >
-                                    {memo.title}
-                                </h2>
-
-                                <p
-                                    style={{
-                                        margin: "0 0 12px",
-                                        fontSize: "13.5px",
-                                        lineHeight: 1.5,
-                                        color: greyColor,
-                                        whiteSpace: "pre-line",
-                                    }}
-                                >
-                                    {memo.brief}
-                                </p>
-
-                                <div
-                                    style={{
-                                        paddingTop: "10px",
-                                        borderTop:
-                                            "1px solid rgba(0, 2, 1, 0.06)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        gap: "8px",
-                                        flexWrap: "wrap",
-                                        fontSize: "11.5px",
-                                        fontWeight: 700,
-                                        color: blackColor,
-                                    }}
-                                >
-                                    <span>
-                                        From {memo.createdByRtaId}
-                                        {memo.claimedByRtaId ? (
-                                            <span style={{ color: greyColor }}>
-                                                {" "}
-                                                · Picked up by{" "}
-                                                {memo.claimedByRtaId}
-                                            </span>
-                                        ) : null}
-                                    </span>
-
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "10px",
-                                        }}
-                                    >
-                                        {memo.status === "open" && (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleUpdateStatus(
-                                                        memo,
-                                                        "in_progress"
-                                                    )
-                                                }
-                                                style={{
-                                                    border: "none",
-                                                    background: "transparent",
-                                                    padding: 0,
-                                                    fontSize: "11px",
-                                                    fontWeight: 800,
-                                                    color: blueColor,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                Pick Up
-                                            </button>
-                                        )}
-
-                                        {memo.status !== "completed" && (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleUpdateStatus(
-                                                        memo,
-                                                        "completed"
-                                                    )
-                                                }
-                                                style={{
-                                                    border: "none",
-                                                    background: "transparent",
-                                                    padding: 0,
-                                                    fontSize: "11px",
-                                                    fontWeight: 800,
-                                                    color: redColor,
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                Mark Done
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                        {memosSentToDept.length === 0 ? (
+                            <div
+                                style={{
+                                    padding: "16px 18px",
+                                    borderRadius: "16px",
+                                    backgroundColor: "#FFFFFF",
+                                    border: "1px solid rgba(0, 2, 1, 0.08)",
+                                    fontSize: "13px",
+                                    color: greyColor,
+                                }}
+                            >
+                                No memos sent to your department yet.
                             </div>
-                        </article>
-                    ))
-                )}
-            </div>
+                        ) : (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "11px",
+                                }}
+                            >
+                                {memosSentToDept.map(renderMemoCard)}
+                            </div>
+                        )}
+                    </section>
+
+                    {/* Section 2: Memos Sent by You */}
+                    <section>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "0 4px 10px",
+                            }}
+                        >
+                            <h2
+                                style={{
+                                    margin: 0,
+                                    fontSize: "11.5px",
+                                    fontWeight: 800,
+                                    letterSpacing: "0.14em",
+                                    textTransform: "uppercase",
+                                    color: greyColor,
+                                }}
+                            >
+                                Memos Sent by You
+                            </h2>
+                            <span
+                                style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    color: greyColor,
+                                }}
+                            >
+                                {memosSentByDept.length}
+                            </span>
+                        </div>
+
+                        {memosSentByDept.length === 0 ? (
+                            <div
+                                style={{
+                                    padding: "16px 18px",
+                                    borderRadius: "16px",
+                                    backgroundColor: "#FFFFFF",
+                                    border: "1px solid rgba(0, 2, 1, 0.08)",
+                                    fontSize: "13px",
+                                    color: greyColor,
+                                }}
+                            >
+                                You haven’t sent any department memos yet.
+                            </div>
+                        ) : (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "11px",
+                                }}
+                            >
+                                {memosSentByDept.map(renderMemoCard)}
+                            </div>
+                        )}
+                    </section>
+                </>
+            )}
         </div>
     )
 }
